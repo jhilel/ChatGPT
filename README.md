@@ -55,3 +55,9 @@ npm run build
 ```
 
 The app and its committed packs work without the SQLite cache. Tests cover reference integrity, personality upgrading against a console-saved dimmer, catalog selection, variable-rig channel references, event programming, color mappings, capacity limits and patch rollover. Earlier upload-based tools remain as development experiments.
+
+## Room layout editor (draft)
+
+Fixture markers can be dragged, with exact X/depth/height and rotation fields. Positions are stored in metres and displayed in the selected room units. Stable fixture keys preserve positions as rig quantities change. Save rig project or download the coordinate CSV to retain the draft.
+
+These coordinates are not yet serialized into MagicVis, and movement cues still use the existing uncalibrated positions. The UI and exported notes explicitly report this. Native transform encoding needs comparison against a MagicQ-saved reference with known positions and rotations; focus generation also needs fixture orientation and focus targets. The layout CSV is a reference document, not an IMPORT HEADS/MVR file. The official 1.9.8.x documentation confirms MVR import adds heads to the patch, so importing a second rig is not used as a substitute for updating the current show's positions.
