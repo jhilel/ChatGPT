@@ -26,7 +26,7 @@ The compiler rebuilds personality, head, logical-channel, group, palette, cue, s
 
 **Experimental compatibility:** successful parsing or a download is not proof of console compatibility for every mode. Existing Storm group/static/FX prototypes were user-tested in MagicQ Demo mode. This generalized compiler passes structural and browser checks, including changed quantities, mixed Generic/Robe rigs and universe rollover; it still needs MagicQ 1.9.8.3/MQ70 loading and output validation. Complex cell mapping, virtual channels and legacy geometry extensions need further characterization. New rigs must be checked in MagicQ.
 
-Room dimensions produce a schematic, not calibrated native focus positions. Event planning uses local rules, not an AI lighting designer or photometric simulation. Native grandMA2/3 exporters, floor-plan extraction, timed cue sequences and strobe generation remain unimplemented.
+Room dimensions produce a plan. Native fixture transforms are exported; optional target focus requires calibration. Event planning uses local rules, not an AI lighting designer or photometric simulation. Native grandMA2/3 exporters, floor-plan extraction, timed cue sequences and strobe generation remain unimplemented.
 
 ## Development
 
@@ -56,8 +56,14 @@ npm run build
 
 The app and its committed packs work without the SQLite cache. Tests cover reference integrity, personality upgrading against a console-saved dimmer, catalog selection, variable-rig channel references, event programming, color mappings, capacity limits and patch rollover. Earlier upload-based tools remain as development experiments.
 
-## Room layout editor (draft)
+## MagicVis layout and experimental target focus
 
-Fixture markers can be dragged, with exact X/depth/height and rotation fields. Positions are stored in metres and displayed in the selected room units. Stable fixture keys preserve positions as rig quantities change. Save rig project or download the coordinate CSV to retain the draft.
+Drag fixtures or enter exact X/depth/height and rotation fields. X maps to MagicVis X, depth to Y, height to Z (the user confirmed Z is vertical). These transforms are now written into native H records. The transform codec is checked byte-for-byte against the user-saved VIS POSITION TEST.shw; MagicQ saves float32 values to two decimal places, with 30.125 becoming 30.12 m. Other native head metadata and logical-channel references are preserved.
 
-These coordinates are not yet serialized into MagicVis, and movement cues still use the existing uncalibrated positions. The UI and exported notes explicitly report this. Native transform encoding needs comparison against a MagicQ-saved reference with known positions and rotations; focus generation also needs fixture orientation and focus targets. The layout CSV is a reference document, not an IMPORT HEADS/MVR file. The official 1.9.8.x documentation confirms MVR import adds heads to the patch, so importing a second rig is not used as a substitute for updating the current show's positions.
+Position export is implemented. Nonzero rotations and target focus still need MagicVis loading/output checks: the calibration show contained only zero rotations. No room walls or stage mesh are generated.
+
+Each fixture has a focus target, neutral beam direction at Locate, pan heading and pan/tilt direction controls. Enable **Aim static looks and circle centres at these targets** after confirming those controls against MagicVis. The solver uses fixture personality travel and locate values, inverts the fixture Euler transform (Rz · Ry · Rx), considers equivalent pan/tilt branches, writes coarse/fine values, and rejects unreachable or coincident targets. Missing travel data also blocks aiming. Target focus is experimental and disabled by default; it does not replace fixture/venue calibration.
+
+Circle phase follows physical left-to-right placement rather than patch order. Circle size is adjustable (default 10% of travel), limited conservatively by the focus channel's remaining travel. Static focus values are also included in circle cues; their interaction with native FX must be checked in MagicQ. This is a starting design, not a photometric optimizer or an automatic guarantee of professional focus.
+
+Use Save rig project and Load rig project to retain and restore the rig, layout and targets; the coordinate CSV is also available. The CSV is a reference document, not an IMPORT HEADS/MVR file. Native output carries the fixture transforms directly; it does not import a second rig. Browser tests cover dragging, exact coordinates, height/rotation, saved layout data and native downloads. Geometry tests cover real MagicQ encoded records, transform preservation, analytic focus targets, mounting/inversion and focused static/FX serialization.

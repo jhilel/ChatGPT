@@ -4,7 +4,7 @@ The requested product is a generator that accepts fixture models, fixture modes,
 
 ## Current implementation and evidence
 
-The local `public/rig-to-show.html` embeds its searchable catalog, factory reference and UI; selected native definitions load from the adjacent `profiles` folder. Extract the complete distribution on Windows/macOS. No source-show upload is required. Corporate, gala, expo and band briefs select local templates. Room dimensions remain a schematic rather than console focus coordinates.
+The local `public/rig-to-show.html` embeds its searchable catalog, factory reference and UI; selected native definitions load from the adjacent `profiles` folder. Extract the complete distribution on Windows/macOS. No source-show upload is required. Corporate, gala, expo and band briefs select local templates. Room layout fixture transforms are now exported into MagicVis, with optional calibrated target aiming; room meshes are not generated.
 
 The generalized compiler instantiates native personalities, heads and channels for selected quantities, allocates sequential addresses without crossing a universe, and rebuilds groups, colors, event cues, scoped effects, stacks and pages. Stage/Decorative roles replace the old head-number assumptions. Old profile tails are normalized when their schema is understood; unsupported legacy extensions and parent/compound definitions are explicitly blocked. Complex cell/virtual mappings remain experimental.
 
@@ -33,4 +33,4 @@ Structural and browser checks cover variable Storm quantities, mixed Generic/Rob
 
 ## Next implementation target
 
-Validate the generalized compiler on MagicQ 1.9.8.3/MQ70 with varied real rigs and known DMX addresses. Characterize unsupported legacy geometry, virtual channels, compound fixtures and multi-universe modules. Then add calibrated position palettes, multi-cue event stacks, and independent grandMA2/3 adapters. Native focus requires confirmed fixture orientations and target geometry.
+Validate the generalized compiler on MagicQ 1.9.8.3/MQ70 with varied real rigs and known DMX addresses. Characterize unsupported legacy geometry, virtual channels, compound fixtures and multi-universe modules. Target focus is now an experimental opt-in feature based on fixture travel and operator-supplied calibration. Verify nonzero rotation conventions and circle centring in MagicVis before relying on it, then add position palettes, multi-cue event stacks and independent grandMA2/3 adapters. Native focus requires confirmed fixture orientations and target geometry.
