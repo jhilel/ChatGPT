@@ -1,0 +1,13 @@
+{
+  "name": "rig-to-show",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test",
+    "build": "python3 src/build.py"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

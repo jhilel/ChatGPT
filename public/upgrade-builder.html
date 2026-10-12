@@ -1,0 +1,77 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Upgrade Storm Builder</title><style>body{max-width:750px;margin:40px auto;padding:20px;font:17px system-ui;background:#101827;color:#edf2fa}p{line-height:1.5}button,input{display:block;margin:20px 0;font:inherit}button{padding:12px;background:#76dfba;border:0;border-radius:6px}pre{white-space:pre-wrap}</style><h1>Upgrade Storm Builder</h1><p>Choose your working storm-combined-builder.html. This creates a separate editable version with look names, colors, intensities, and fixture placement controls.</p><input id="source" type="file" accept=".html"><button id="upgrade">Download editable builder</button><pre id="status" role="status"></pre><script id="addon" type="text/plain">(()=>{
+const colors=['White','Red','Amber','Yellow','Green','Cyan','Blue','Pink','UV','Magenta'];
+const defaults=JSON.parse(JSON.stringify(templates));
+const config={looks:JSON.parse(JSON.stringify(templates)),places:Array.from({length:12},(_,i)=>(i<2||(i>=4&&i<8))?'Truss':'Floor')};
+const oldShow=generateShow,oldEffects=generateEffects;
+function validate(){
+ if(config.places.length!==12||config.places.some(p=>!['Truss','Floor'].includes(p)))throw Error('Invalid fixture placement.');
+ if(!config.looks||Object.keys(config.looks).length!==4||Object.keys(defaults).some(k=>!Object.hasOwn(config.looks,k)))throw Error('Invalid event settings.');
+ for(const looks of Object.values(config.looks)){
+  if(!Array.isArray(looks)||looks.length!==8)throw Error('Each event needs eight looks.');
+  for(const l of looks)if(l.length!==5||typeof l[0]!=='string'||!/^[-A-Za-z0-9 _]{1,24}$/.test(l[0])||!Number.isInteger(l[1])||l[1]<0||l[1]>100||!Number.isInteger(l[2])||l[2]<0||l[2]>100||!colors.includes(l[3])||!colors.includes(l[4]))throw Error('Use 1–24 plain letters/numbers for names, and whole percentages from 0 to 100.');
+ }
+}
+function remember(){try{localStorage.setItem('storm-editor-v1',JSON.stringify(config));}catch{}}
+try{
+ const saved=JSON.parse(localStorage.getItem('storm-editor-v1'));
+ if(saved){config.looks=saved.looks;config.places=saved.places;validate();}
+}catch{config.looks=JSON.parse(JSON.stringify(defaults));config.places=Array.from({length:12},(_,i)=>(i<2||(i>=4&&i<8))?'Truss':'Floor');}
+function members(test){return Array.from({length:12},(_,i)=>i+1).filter(test);}
+function patchGroups(bytes){
+ const text=byteText(bytes),refs=new Map();
+ for(const m of text.matchAll(/^L,([0-9a-f]+),"[^"]*",[^,]*,[^,]*,0,[^,]*,[^,]*,[^,]*,[^,]*,([0-9a-f]+),/gmi))refs.set(parseInt(m[2],16),m[1]);
+ if(refs.size!==12)throw Error('Could not resolve twelve group references.');
+ const selections=[['Truss',members(h=>config.places[h-1]==='Truss')],['Floor',members(h=>config.places[h-1]==='Floor')],['Truss Profiles',members(h=>h<=4&&config.places[h-1]==='Truss')],['Floor Profiles',members(h=>h<=4&&config.places[h-1]==='Floor')],['Truss BeamWash',members(h=>h>4&&config.places[h-1]==='Truss')],['Floor BeamWash',members(h=>h>4&&config.places[h-1]==='Floor')]];
+ const changes=[];
+ for(const [name,heads] of selections){
+  const m=text.match(new RegExp('^G,([0-9a-f]+),"'+name+'",([^\\r\\n]*)','mi'));
+  if(!m)throw Error('Missing '+name+' group.');
+  const parts=m[2].split(','),count=parseInt(parts[0],16);
+  if(parts.length!==count+3)throw Error('Unexpected group selection record.');
+  const header='G,'+m[1]+',"'+name+'",'+heads.length.toString(16)+','+(heads.length?heads.map(h=>refs.get(h)).join(',')+',':'')+parts[count+1]+',';
+  changes.push({start:m.index,end:m.index+m[0].length,text:header});
+ }
+ return Uint8Array.from(edit(text,changes),c=>c.charCodeAt(0));
+}
+generateEffects=function(bytes){
+ validate();
+ const all=members(h=>h>4),truss=members(h=>h>4&&config.places[h-1]==='Truss'),floor=members(h=>h>4&&config.places[h-1]==='Floor');
+ const selections=[['All BW Chase',3,all],['Truss BW Chase',3,truss],['Floor BW Chase',3,floor],['All BW Circle',4,all],['Truss BW Circle',4,truss],['Floor BW Circle',4,floor]].filter(l=>l[2].length);
+ const old=plan.slice();plan.splice(0,plan.length,...selections);
+ try{return oldEffects(bytes);}finally{plan.splice(0,plan.length,...old);}
+};
+generateShow=function(bytes,event){
+ validate();const old=templates[event];templates[event]=config.looks[event];
+ try{return patchGroups(oldShow(bytes,event));}finally{templates[event]=old;}
+};
+const placement=document.createElement('section');placement.innerHTML='<h2>Fixture placement</h2><p>Set truss/floor assignments. Generated groups and effect selections follow these assignments. Empty effect selections are omitted; empty location groups are retained.</p>';
+const table=document.createElement('table');const rigBody=document.createElement('tbody');table.append(rigBody);placement.append(table);
+document.querySelector('section').after(placement);
+function renderRig(){rigBody.replaceChildren();for(let i=0;i<12;i++){const row=document.createElement('tr'),label=document.createElement('td'),cell=document.createElement('td'),select=document.createElement('select');label.textContent=(i+1)+' · '+(i<4?'Profile':'BeamWash');select.setAttribute('aria-label','Head '+(i+1)+' location');for(const p of ['Truss','Floor'])select.add(new Option(p,p,false,config.places[i]===p));select.onchange=()=>{config.places[i]=select.value;remember();renderFX();};cell.append(select);row.append(label,cell);rigBody.append(row);}}
+function renderFX(){const section=[...document.querySelectorAll('section')].find(s=>s.querySelector('h2')?.textContent.includes('Generated FX'));if(!section)return;const list=section.querySelector('ol');list.replaceChildren();for(const [name,heads] of [['All BW Chase',members(h=>h>4)],['Truss BW Chase',members(h=>h>4&&config.places[h-1]==='Truss')],['Floor BW Chase',members(h=>h>4&&config.places[h-1]==='Floor')],['All BW Circle',members(h=>h>4)],['Truss BW Circle',members(h=>h>4&&config.places[h-1]==='Truss')],['Floor BW Circle',members(h=>h>4&&config.places[h-1]==='Floor')]]){if(!heads.length)continue;const li=document.createElement('li');li.textContent=name+' · heads '+heads.join(', ');list.append(li);}}
+render=function(){
+ const event=$('event').value;const body=$('looks');body.replaceChildren();
+ for(const [i,l] of config.looks[event].entries()){
+  const row=document.createElement('tr'),pb=document.createElement('td');pb.textContent=i+1;row.append(pb);
+  for(const columns of [[0],[1,3],[2,4]]){
+   const cell=document.createElement('td');
+   for(const column of columns){let input;
+    if(column>=3){input=document.createElement('select');for(const color of colors)input.add(new Option(color,color,false,l[column]===color));}
+    else{input=document.createElement('input');input.type=column===0?'text':'number';if(column===0)input.maxLength=24;else{input.min=0;input.max=100;input.step=1;}input.value=l[column];input.style.width=column===0?'180px':'80px';}
+    input.setAttribute('aria-label','Playback '+(i+1)+' '+['name','Profile intensity','BeamWash intensity','Profile color','BeamWash color'][column]);
+    input.onchange=()=>{l[column]=column===1||column===2?Number(input.value):input.value;remember();};cell.append(input);
+   }
+   row.append(cell);
+  }
+  body.append(row);
+ }
+};
+$('event').onchange=render;
+const reset=document.createElement('button');reset.textContent='Reset this event';reset.onclick=()=>{config.looks[$('event').value]=JSON.parse(JSON.stringify(defaults[$('event').value]));remember();render();};$('generate').before(reset);
+const note=document.createElement('p');note.textContent='Edit names, colors and whole-number intensities before exporting. Edits are saved in this browser when storage is available. This still requires your exact original TEST EFFECTS.shw. Custom placement applies to groups and effects; static looks remain assigned by fixture type. Empty groups and custom effect assignments need verification in MagicQ.';placement.before(note);
+const originalNote=[...document.querySelectorAll('body > p')].find(p=>p.textContent.includes('Truss BeamWash heads are assumed'));if(originalNote)originalNote.textContent='This experimental builder preserves your saved FX waveform, speed, size, and phases. Placement controls update fixture groups and FX subsets, but do not change patch addresses or focus positions. Phases are not redistributed. Chase cues have no static color/intensity; circle cues retain 50% intensity. Timed cue sequences, strobe, and grandMA exporters remain unimplemented.';
+renderRig();renderFX();render();
+})();
+</script><script>
+document.getElementById('upgrade').onclick=async()=>{const file=document.getElementById('source').files[0],status=document.getElementById('status');if(!file){status.textContent='Choose your working combined builder HTML first.';return;}try{const source=await file.text();if(!source.includes('a32359b9bca3c64fcf36cadd03faa0c124b421f38c28b8a869fe647976e32408')||!source.includes('function generateShow(')||!source.includes('function generateEffects(')||!source.includes('Generated Looks'))throw Error('Choose the combined builder from the previous step.');if(source.includes('storm-editor-v1'))throw Error('This builder is already upgraded.');const html=source+'\n<script>\n'+document.getElementById('addon').textContent+'\n</'+'script>';const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));const a=document.createElement('a');a.href=url;a.download='storm-editable-builder.html';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Downloaded storm-editable-builder.html. Open it, choose your original TEST EFFECTS.shw, edit your looks/placement, and export.';}catch(e){status.textContent=e.message;}};
+</script></html>

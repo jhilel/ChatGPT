@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storm Show Builder — MagicQ</title>
+<style>
+body{max-width:850px;margin:30px auto;padding:20px;font:16px system-ui;background:#101827;color:#edf2fa}section{background:#1b273b;padding:22px;border-radius:12px;margin:18px 0}input,button,select{font:inherit;padding:10px;max-width:100%}button{background:#76dfba;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.5}label{display:block;margin:12px 0}p{line-height:1.5}td,th{text-align:left;padding:8px;border-bottom:1px solid #40506a}table{width:100%}.scroll{overflow:auto}pre{white-space:pre-wrap}
+</style>
+<h1>Storm Show Builder</h1>
+<p>Native MagicQ group-generation test · Windows / macOS · Offline</p>
+<section><label>Patched source show <input id="file" type="file" accept=".shw"></label><p>Choose your original TEST FILE.shw. The builder checks for four Storm 2 Profiles in 32ch and eight Storm 2 BeamWash in Single Basic1, numbered 1–12.</p></section>
+<section><h2>Fixture placement</h2><div class="scroll"><table><thead><tr><th>Head</th><th>Fixture</th><th>Placement</th></tr></thead><tbody id="rig"></tbody></table></div></section>
+<section><h2>Generated groups</h2><ul id="groups"></ul><button id="save" disabled>Generate MagicQ .shw</button><pre id="status" role="status">Choose the patched source show.</pre></section>
+<p>This version adds groups only, preserving the source patch, fixture definitions, existing palettes and programming. It creates a separate file. Load it in MagicQ to verify the groups before proceeding to cues and playbacks. grandMA export is not implemented.</p>
+<script>
+function byteText(bytes){let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return text;}
+function groupPlan(locations){
+  const all=Array.from({length:12},(_,i)=>i+1);
+  const select=fn=>all.filter(fn);
+  return [
+    ['All Rig',all],['All Profiles',select(h=>h<=4)],['All BeamWash',select(h=>h>4)],
+    ['Truss',select(h=>locations[h-1]==='Truss')],['Floor',select(h=>locations[h-1]==='Floor')],
+    ['Truss Profiles',select(h=>h<=4&&locations[h-1]==='Truss')],
+    ['Floor Profiles',select(h=>h<=4&&locations[h-1]==='Floor')],
+    ['Truss BeamWash',select(h=>h>4&&locations[h-1]==='Truss')],
+    ['Floor BeamWash',select(h=>h>4&&locations[h-1]==='Floor')],
+    ['Profiles Odd',select(h=>h<=4&&h%2===1)],['Profiles Even',select(h=>h<=4&&h%2===0)],
+    ['BeamWash Odd',select(h=>h>4&&h%2===1)],['BeamWash Even',select(h=>h>4&&h%2===0)]
+  ].filter(([,heads])=>heads.length);
+}
+function buildShow(bytes,locations){
+  if(locations.length!==12||locations.some(l=>!['Truss','Floor'].includes(l)))throw Error('Invalid fixture placement.');
+  const text=byteText(bytes);
+  if(!text.startsWith('\\ MagicQ Show File.'))throw Error('Not a recognized MagicQ text show.');
+  const personalities=[...text.matchAll(/^P,([0-9a-f]+),"([^"]+)","[^"]*","([^"]*)",/gmi)];
+  if(personalities.length!==2)throw Error('Use the original 12-fixture test show with two personalities.');
+  const profile=personalities.find(m=>m[2]==='Chauvet Pro_MaverickStorm2P_32ch'&&m[3]==='32ch');
+  const wash=personalities.find(m=>m[2]==='Chauvet Pro_MavStorm2BW_Single Basic1'&&m[3]==='Single Basic1');
+  if(!profile||!wash)throw Error('Fixture personalities do not match the tested rig.');
+  const heads=new Map(),headRecords=[...text.matchAll(/^H,([0-9a-f]+),/gmi)];
+  if(headRecords.length!==12||new Set(headRecords.map(m=>parseInt(m[1],16))).size!==12||headRecords.some(m=>parseInt(m[1],16)<1||parseInt(m[1],16)>12))throw Error('Expected exactly heads 1–12.');
+  const channels=[...text.matchAll(/^L,([0-9a-f]+),"([^"]*)",([^,]+),([0-9a-f]+),([0-9a-f]+),[^,]*,[^,]*,[^,]*,[^,]*,([0-9a-f]+),/gmi)];
+  if(channels.length!==376)throw Error('Expected 376 patched channels for this rig.');
+  for(const m of channels){
+    const head=parseInt(m[6],16),personality=parseInt(m[4],16),offset=parseInt(m[5],16);
+    if(head<1||head>12||personality!==parseInt(head<=4?profile[1]:wash[1],16))throw Error('Unexpected head/personality mapping.');
+    if(offset===0){if(heads.has(head))throw Error('Duplicate head reference.');heads.set(head,m[1]);}
+  }
+  if(heads.size!==12)throw Error('Could not resolve all twelve fixture references.');
+  const groups=[...text.matchAll(/^G,([0-9a-f]+),"([^"\r\n]*)",([^\r\n]*)\r?\n/gmi)];
+  if(!groups.length)throw Error('No group template found.');
+  const existing=new Set(groups.map(m=>parseInt(m[1],16)));
+  const plan=groupPlan(locations);
+  if(groups.some(m=>plan.some(([name])=>name===m[2])))throw Error('Generated groups already exist. Choose your original TEST FILE.shw.');
+  const template=groups.find(m=>m[2]==='MaverickStorm2P');
+  if(!template)throw Error('Original Profile group template is missing.');
+  const parts=template[3].split(',');
+  if(parseInt(parts[0],16)!==4||parts.length!==7)throw Error('Unsupported group template structure.');
+  const expected=[1,2,3,4].map(h=>parseInt(heads.get(h),16));
+  if(parts.slice(1,5).some((p,i)=>parseInt(p,16)!==expected[i]))throw Error('Template fixture references do not match.');
+  const restStart=template.index+template[0].length;
+  const rest=text.slice(restStart).match(/^[\s\S]*?^;\r?\n/m);
+  if(!rest||/^G,/m.test(rest[0]))throw Error('Unsupported group record boundary.');
+  const nl=template[0].endsWith('\r\n')?'\r\n':'\n';
+  let id=101,added='';const assigned=[];
+  for(const [name,members] of plan){
+    while(existing.has(id)&&id<=200)id++;
+    if(id>200)throw Error('Not enough free group IDs between 101 and 200.');
+    assigned.push({id,name,members});existing.add(id);
+    added+='G,'+id.toString(16).padStart(4,'0')+',"'+name+'",'+members.length.toString(16)+','+members.map(h=>heads.get(h)).join(',')+','+parts[5]+','+nl+rest[0]+nl;id++;
+  }
+  const insert=template.index;
+  const output=new Uint8Array(bytes.length+added.length);
+  output.set(bytes.subarray(0,insert));
+  for(let i=0;i<added.length;i++)output[insert+i]=added.charCodeAt(i);
+  output.set(bytes.subarray(insert),insert+added.length);
+  return {output,assigned,insert,addedLength:added.length};
+}
+const $=id=>document.getElementById(id);
+const locations=Array.from({length:12},(_,i)=>(i<2||(i>=4&&i<8))?'Truss':'Floor');
+let source,sourceName;
+function render(){ $('groups').replaceChildren(...groupPlan(locations).map(([name,heads])=>{const li=document.createElement('li');li.textContent=name+': '+heads.join(', ');return li;}));}
+for(let i=0;i<12;i++){
+  const row=document.createElement('tr');
+  for(const value of [i+1,i<4?'Storm 2 Profile':'Storm 2 BeamWash']){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}
+  const cell=document.createElement('td'),select=document.createElement('select');select.setAttribute('aria-label','Head '+(i+1)+' placement');
+  for(const place of ['Truss','Floor'])select.add(new Option(place,place,false,locations[i]===place));
+  select.onchange=()=>{locations[i]=select.value;render();};cell.append(select);row.append(cell);$('rig').append(row);
+}
+$('file').onchange=async()=>{
+  source=undefined;$('save').disabled=true;const file=$('file').files[0];if(!file)return;
+  if(file.size>20000000){$('status').textContent='Use a file smaller than 20 MB.';return;}
+  $('file').disabled=true;
+  try{const data=new Uint8Array(await file.arrayBuffer());buildShow(data,locations);source=data;sourceName=file.name;$('save').disabled=false;$('status').textContent='Rig verified. Ready to generate groups.';}
+  catch(e){$('status').textContent=e.message;}finally{$('file').disabled=false;}
+};
+$('save').onclick=()=>{
+  try{
+    const result=buildShow(source,locations),url=URL.createObjectURL(new Blob([result.output],{type:'application/octet-stream'}));
+    const a=document.createElement('a');a.href=url;a.download=sourceName.replace(/\.shw$/i,'')+'-generated-groups.shw';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    $('status').textContent='Show exported. Verify these group IDs in MagicQ:\n'+result.assigned.map(g=>g.id+' · '+g.name+' · heads '+g.members.join(', ')).join('\n');
+  }catch(e){$('status').textContent=e.message;}
+};render();
+</script>
+</html>

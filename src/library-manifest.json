@@ -1,0 +1,13 @@
+{
+  "source": "User-provided heads.all inside a seven-part ZIP",
+  "archiveSha256": "bf93ae46fb41c1540b3fb804341007fcf95e704811da08733e3ce4b5c6a8279d",
+  "encodedLibrarySha256": "d8cc20ee19634a15f0e8447c1f38617f1d50dd801fcfa341ac725bd3dc4e6469",
+  "decodedLibrarySha256": "899dad248057cfa35dafefaba54ecc8f5f5ea7b69e58809786e57e2a25478dd0",
+  "archiveCrcVerified": true,
+  "indexedModes": 69583,
+  "manufacturers": 955,
+  "models": 22337,
+  "unparsedPersonalities": 0,
+  "catalog": "public/fixture-library.json",
+  "logicalChannelsAreNotUniversalDmxFootprints": true
+}

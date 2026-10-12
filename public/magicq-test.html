@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MagicQ Native File Test</title>
+<style>
+body{max-width:760px;margin:40px auto;padding:20px;font:17px system-ui;background:#101827;color:#edf2fa}section{background:#1b273b;padding:24px;border-radius:12px}label{display:block;margin:20px 0}input,select,button{font:inherit;padding:10px;max-width:100%;display:block;margin-top:8px}button{background:#76dfba;border:0;border-radius:6px;cursor:pointer}p{line-height:1.5}pre{white-space:pre-wrap}button:disabled{opacity:.5;cursor:default}
+</style>
+<h1>MagicQ native-file test</h1>
+<p>Choose a copy of the Chauvet demo show, rename one group, and download a new .shw file. Processing stays on your computer.</p>
+<section>
+<label>Source show<input id="file" type="file" accept=".shw"></label>
+<label>Group<select id="group" disabled></select></label>
+<label>New label<input id="label" value="GENERATOR TEST" maxlength="24"></label>
+<button id="save" disabled>Save test .shw</button>
+<pre id="status" role="status">Choose your demo show to begin.</pre>
+</section>
+<p>This experiment edits one existing group label only. It does not build your rig or translate fixtures. Load the output into a separate offline test session, then check the renamed group and its fixture selection. Successful downloading does not prove MagicQ compatibility.</p>
+<script>
+function scanGroups(bytes) {
+  const text = Array.from(bytes, b => String.fromCharCode(b)).join('');
+  if (!text.startsWith('\\ MagicQ Show File.')) throw Error('Not a recognized MagicQ text show.');
+  const groups = [];
+  const pattern = /^G,([0-9a-fA-F]+),"([^"\r\n]*)",/gm;
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index + match[0].indexOf('"') + 1;
+    groups.push({id: match[1], name: match[2], start, end: start + match[2].length});
+  }
+  if (!groups.length) throw Error('No supported group records found.');
+  return groups;
+}
+function renameGroup(bytes, group, label) {
+  if (!/^[A-Za-z0-9 _-]{1,24}$/.test(label)) throw Error('Use 1–24 letters, numbers, spaces, underscores or hyphens.');
+  const known = scanGroups(bytes).find(g => g.id === group.id && g.start === group.start && g.end === group.end);
+  if (!known) throw Error('Group does not match source file.');
+  const replacement = new TextEncoder().encode(label);
+  const output = new Uint8Array(bytes.length - (group.end - group.start) + replacement.length);
+  output.set(bytes.subarray(0, group.start));
+  output.set(replacement, group.start);
+  output.set(bytes.subarray(group.end), group.start + replacement.length);
+  return output;
+}
+const el = id => document.getElementById(id);
+let bytes, groups, sourceName;
+el('file').onchange = async () => {
+  el('save').disabled = true;
+  el('group').disabled = true;
+  el('group').replaceChildren();
+  bytes = undefined;
+  const file = el('file').files[0];
+  if (!file) return;
+  if (file.size > 20000000) {el('status').textContent = 'Please use a show smaller than 20 MB for this test.';return;}
+  el('file').disabled = true;
+  try {
+    const data = new Uint8Array(await file.arrayBuffer());
+    groups = scanGroups(data);
+    bytes = data;
+    sourceName = file.name;
+    for (const [index, group] of groups.entries()) {
+      el('group').add(new Option(parseInt(group.id, 16) + ': ' + group.name, index));
+    }
+    el('group').disabled = false;
+    el('save').disabled = false;
+    el('status').textContent = groups.length + ' group records found. Original file will remain unchanged.';
+  } catch (error) {el('status').textContent = error.message;}
+  finally {el('file').disabled = false;}
+};
+el('save').onclick = () => {
+  try {
+    const group = groups[Number(el('group').value)];
+    const output = renameGroup(bytes, group, el('label').value);
+    const url = URL.createObjectURL(new Blob([output], {type: 'application/octet-stream'}));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = sourceName.replace(/\.shw$/i, '') + '-generator-test.shw';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    el('status').textContent = 'Test file exported. Load it in MagicQ and verify the group label and membership.';
+  } catch (error) {el('status').textContent = error.message;}
+};
+</script>
+</html>

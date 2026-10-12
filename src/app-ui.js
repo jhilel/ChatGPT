@@ -1,0 +1,39 @@
+(()=>{
+const $=id=>document.getElementById(id),svgNS='http://www.w3.org/2000/svg';
+const project={version:1,name:'Storm event',rig:Catalog.verifiedIds.map(id=>StormLibrary.byId.get(id)).filter(f=>f.exportSupported).map(f=>({profileId:f.id,quantity:f.verifiedQuantity})),brief:'',event:'auto',brand:'auto',movement:true,chase:true,room:{unit:'ft',width:60,depth:40,stageWidth:24,stageDepth:10,trussHeight:16},places:Array.from({length:12},(_,i)=>(i<2||(i>=4&&i<8))?'Truss':'Floor')};
+let notes;
+for(const color of ['auto','White','Red','Amber','Yellow','Green','Cyan','Blue','Pink','UV','Magenta'])$('brand').add(new Option(color==='auto'?'Infer from brief':color,color));
+function read(){project.name=$('name').value;project.brief=$('brief').value;project.event=$('event').value;project.brand=$('brand').value;project.movement=$('movement').checked;project.chase=$('chase').checked;for(const key of ['width','depth','stageWidth','stageDepth','trussHeight'])project.room[key]=Number($(key).value);project.room.unit=$('unit').value;}
+function svg(tag,attrs,text){const el=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;return el;}
+function layout(){
+ const r=project.room;$('layout').replaceChildren();if(![r.width,r.depth,r.stageWidth,r.stageDepth].every(v=>Number.isFinite(v)&&v>0))return;
+ const scale=Math.min(440/r.width,330/r.depth),w=r.width*scale,d=r.depth*scale,x=(500-w)/2,y=30;
+ $('layout').append(svg('rect',{x,y,width:w,height:d,fill:'#101c2d',stroke:'#456381'}));
+ const sw=Math.min(r.stageWidth,r.width)*scale,sd=Math.min(r.stageDepth,r.depth)*scale;
+ $('layout').append(svg('rect',{x:250-sw/2,y:y+10,width:sw,height:sd,fill:'#2c435c',stroke:'#73e2bc'}),svg('text',{x:250,y:y+Math.min(sd/2,30),fill:'#e9eff9','text-anchor':'middle','font-size':13},'STAGE'));
+ for(const place of ['Truss','Floor']){
+  const ids=project.places.map((p,i)=>p===place?i+1:0).filter(Boolean),cy=place==='Truss'?y+8:y+Math.min(sd+28,d-10);
+  ids.forEach((head,i)=>{const cx=250-sw/2+sw*(i+1)/(ids.length+1),g=svg('g',{class:'fixture',tabindex:0,role:'button','aria-label':'Head '+head+' '+place+'. Activate to switch location.'});g.append(svg('circle',{cx,cy,r:12,fill:head<=4?'#f0bc6b':'#73e2bc'}),svg('text',{x:cx,y:cy+4,'text-anchor':'middle',fill:'#0d1422','font-size':11},head));const toggle=()=>{project.places[head-1]=place==='Truss'?'Floor':'Truss';refresh();};g.onclick=toggle;g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}};$('layout').append(g);});
+ }
+ $('layout').append(svg('text',{x:250,y:390,fill:'#b3c2d7','text-anchor':'middle','font-size':13},r.width+' × '+r.depth+' '+r.unit+' · truss '+r.trussHeight+' '+r.unit));
+ $('locations').textContent='Truss: '+project.places.map((p,i)=>p==='Truss'?i+1:null).filter(Boolean).join(', ')+' | Floor: '+project.places.map((p,i)=>p==='Floor'?i+1:null).filter(Boolean).join(', ');
+}
+function renderRig(){
+ $('rig').replaceChildren();project.rig.forEach((row,index)=>{const tr=document.createElement('tr'),cell=document.createElement('td'),f=StormLibrary.byId.get(row.profileId);const label=document.createElement('div');label.textContent=f?f.manufacturer+' · '+f.model+' / '+f.mode:'Unknown profile';cell.append(label);const qtyCell=document.createElement('td'),qty=document.createElement('input');qty.type='number';qty.min=1;qty.max=512;qty.value=row.quantity;qty.setAttribute('aria-label','Fixture '+(index+1)+' quantity');qty.oninput=()=>{row.quantity=Number(qty.value);refresh();};qtyCell.append(qty);const removeCell=document.createElement('td'),remove=document.createElement('button');remove.textContent='Remove';remove.onclick=()=>{project.rig.splice(index,1);renderRig();refresh();};removeCell.append(remove);tr.append(cell,qtyCell,removeCell);$('rig').append(tr);});
+}
+function renderSearch(){const result=StormLibrary.search($('search').value,$('manufacturer').value,50);$('searchCount').textContent=result.total.toLocaleString()+' matching modes'+(result.total>50?' · showing first 50; refine your search':'');$('libraryResults').replaceChildren(...result.results.map(f=>{const row=document.createElement('tr');for(const value of [f.manufacturer||'(unspecified)',f.model,f.mode,f.exportSupported?'Verified Storm adapter':'Catalog only']){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}const cell=document.createElement('td'),add=document.createElement('button');add.textContent='Add to rig';add.setAttribute('aria-label','Add '+f.model+' '+f.mode+' to rig');add.onclick=()=>{project.rig.push({profileId:f.id,quantity:1});renderRig();refresh();};cell.append(add);row.append(cell);return row;}));}
+for(const manufacturer of StormLibrary.manufacturers)$('manufacturer').add(new Option(manufacturer||'(unspecified)',manufacturer));
+$('libraryStats').textContent=StormLibrary.stats.modes.toLocaleString()+' fixture/mode entries · '+StormLibrary.stats.manufacturers.toLocaleString()+' manufacturers';
+let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(renderSearch,120);};$('manufacturer').onchange=renderSearch;
+function refresh(){
+ read();notes=undefined;$('notes').disabled=true;const errors=StormBrief.validateProject(project,Catalog);$('generate').disabled=errors.length>0;$('status').textContent=errors.join('\n');layout();if(project.rig.some(row=>!StormLibrary.byId.get(row.profileId)?.exportSupported)){ $('layout').replaceChildren();$('locations').textContent='Native layout preview is available for the verified Storm rig only.'; }
+ try{const design=StormBrief.design(project,StormNative.defaults);$('decisions').replaceChildren(...design.decisions.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));$('looks').replaceChildren(...design.looks.map(l=>{const row=document.createElement('tr');for(const value of [l[0],l[1]+'% '+l[3],l[2]+'% '+l[4]]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}return row;}));}catch(e){$('status').textContent=e.message;}
+}
+function download(bytes,type,name){const url=URL.createObjectURL(new Blob([bytes],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('add').onclick=()=>{$('search').focus();$('search').scrollIntoView({behavior:'smooth',block:'center'});};
+$('saveRig').onclick=()=>{read();const data={...structuredClone(project),fixtures:project.rig.map(row=>({quantity:row.quantity,profile:StormLibrary.byId.get(row.profileId)}))};download(JSON.stringify(data,null,2),'application/json','rig-project.json');};
+for(const id of ['name','brief','event','brand','movement','chase','unit','width','depth','stageWidth','stageDepth','trussHeight'])$(id).addEventListener('input',refresh);
+$('generate').onclick=async()=>{read();$('generate').disabled=true;$('status').textContent='Building native show…';try{const result=await StormBrief.compile(project,Catalog,FactorySeed);const name=project.name.replace(/[^A-Za-z0-9 _-]/g,'').trim()||'Storm Event';download(result.show,'application/octet-stream',name+'.shw');notes={...structuredClone(project),design:result.design,export:{format:'MagicQ .shw',verifiedRigOnly:true}};$('notes').disabled=false;$('status').textContent='Native show exported without a show upload. Load it in MagicQ: page 1 = event looks; page 2 = selected effects. Check this new export, focus, and fixture behavior before using it on a gig.';}catch(e){$('status').textContent=e.message;}finally{$('generate').disabled=StormBrief.validateProject(project,Catalog).length>0;}};
+$('notes').onclick=()=>{if(notes)download(JSON.stringify(notes,null,2),'application/json','show-project.json');};
+renderRig();renderSearch();refresh();
+})();

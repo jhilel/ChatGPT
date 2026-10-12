@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storm FX Builder</title>
+<style>
+body{max-width:850px;margin:30px auto;padding:20px;font:17px system-ui;background:#101827;color:#edf2fa}section{background:#1b273b;padding:22px;border-radius:12px;margin:18px 0}input,button{font:inherit;padding:10px;max-width:100%}button{background:#76dfba;border:0;border-radius:6px;cursor:pointer}p{line-height:1.5}li{margin:10px 0}pre{white-space:pre-wrap}
+</style>
+<h1>Storm FX Builder</h1>
+<p>Native MagicQ effect-selection test · Windows / macOS · Offline</p>
+<section><p>Choose the exact original TEST EFFECTS.shw you uploaded. Page 1 remains unchanged. Six generated effect playbacks are added on page 2, named Generated FX.</p><input id="file" type="file" accept=".shw"><button id="generate">Generate FX show</button><pre id="status" role="status">Choose your source show.</pre></section>
+<section><h2>Page 2 · Generated FX</h2><ol><li>All BeamWash Chase — heads 5–12</li><li>Truss BeamWash Chase — heads 5–8</li><li>Floor BeamWash Chase — heads 9–12</li><li>All BeamWash Circle — heads 5–12</li><li>Truss BeamWash Circle — heads 5–8</li><li>Floor BeamWash Circle — heads 9–12</li></ol></section>
+<p>The truss/floor assignment is assumed. This version copies your saved waveform, speed, size, and phase settings while filtering fixture channels and their associated timing rows. It does not rebalance phase for smaller groups or generate new effects from scratch. Chase cues carry no recorded color or static intensity. Circle cues carry the recorded 50% intensity. Test individually with the programmer cleared and other playbacks released; check fixture selection in MagicQ before using on a rig.</p>
+<script>
+const sourceHash='a32359b9bca3c64fcf36cadd03faa0c124b421f38c28b8a869fe647976e32408';
+const plan=[['All BW Chase',3,[5,6,7,8,9,10,11,12]],['Truss BW Chase',3,[5,6,7,8]],['Floor BW Chase',3,[9,10,11,12]],['All BW Circle',4,[5,6,7,8,9,10,11,12]],['Truss BW Circle',4,[5,6,7,8]],['Floor BW Circle',4,[9,10,11,12]]];
+function byteText(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return s;}
+function record(text,type,id){const m=text.match(new RegExp('^'+type+','+id.toString(16).padStart(4,'0')+',[\\s\\S]*?;\\r?\\n','m'));if(!m)throw Error('Missing '+type+' record '+id);return {text:m[0],start:m.index,end:m.index+m[0].length};}
+function tokens(text,skip,count){let pos=0;for(let i=0;i<skip;i++)pos=text.indexOf('\n',pos)+1;const re=/[0-9a-f]+/gi;re.lastIndex=pos;const result=[];let cursor=pos;for(let i=0;i<count;i++){const m=re.exec(text);if(!m||!/^[,\s]*$/.test(text.slice(cursor,m.index)))throw Error('Unsupported numeric data.');result.push({text:m[0],start:m.index,end:m.index+m[0].length});cursor=m.index+m[0].length;}return result;}
+function edits(text,changes){let last=text.length;for(const c of [...changes].sort((a,b)=>b.start-a.start)){if(c.end>last||c.start>c.end)throw Error('Overlapping edits.');text=text.slice(0,c.start)+c.text+text.slice(c.end);last=c.start;}return text;}
+function subsetCue(cue,heads,id,name,channelHeads){
+ const nl=cue.includes('\r\n')?'\r\n':'\n',lines=cue.split(/\r?\n/);
+ const header=lines[0].match(/^S,([0-9a-f]+),"[^"]*",([0-9a-f]+),1,0,$/i);if(!header)throw Error('Unsupported FX cue header.');
+ const staticCount=parseInt(header[2],16),fxIndex=lines.findIndex(l=>/^000[12],10,/.test(l));
+ if(fxIndex!==3)throw Error('Unsupported FX cue layout.');
+ const fxFields=lines[fxIndex].split(','),count=parseInt(fxFields[1],16);if(count!==16)throw Error('Expected sixteen effect channels.');
+ const rows=lines.slice(fxIndex+1,fxIndex+1+count);
+ const timingIndex=lines.findIndex(l=>l==='00000000,00000000,00000000,00000000,00000961,000003e8,000003e8,0000,');
+ if(timingIndex<fxIndex+count+1)throw Error('Unsupported FX timing layout.');
+ const timing=lines.slice(timingIndex+1,timingIndex+1+count);
+ if(timing.some(l=>!/^([0-9a-f]+,){3}$/i.test(l)))throw Error('Invalid FX timing rows.');
+ const selected=[];
+ rows.forEach((row,i)=>{if(!/^([0-9a-f]+,){7}$/i.test(row))throw Error('Invalid FX channel row.');const head=channelHeads.get(parseInt(row.split(',')[0],16));if(!head)throw Error('Unknown FX fixture reference.');if(heads.includes(head))selected.push(i);});
+ if(selected.length!==heads.length*2)throw Error('Unexpected channels per fixture.');
+ const staticFields=staticCount?tokens(cue,2,staticCount*2):[],staticValues=[];
+ for(let i=0;i<staticFields.length;i+=2){const head=channelHeads.get(parseInt(staticFields[i].text,16));if(!head)throw Error('Unknown intensity fixture reference.');if(heads.includes(head))staticValues.push(staticFields[i].text,staticFields[i+1].text);}
+ const prefix=lines.slice(0,fxIndex);
+ prefix[0]='S,'+id.toString(16).padStart(4,'0')+',"'+name+'",'+(staticValues.length/2).toString(16)+',1,0,';
+ prefix[2]=staticValues.length?staticValues.join(',')+',':'';
+ fxFields[1]=selected.length.toString(16);
+ return [...prefix,fxFields.join(','),...selected.map(i=>rows[i]),...lines.slice(fxIndex+1+count,timingIndex+1),...selected.map(i=>timing[i]),...lines.slice(timingIndex+1+count)].join(nl);
+}
+function generateEffects(bytes){
+ const text=byteText(bytes),nl=text.includes('\r\n')?'\r\n':'\n';
+ if(/^B,0002,/m.test(text))throw Error('Page 2 already exists.');
+ const channels=new Map();
+ for(const m of text.matchAll(/^L,([0-9a-f]+),"[^"]*",[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,([0-9a-f]+),/gmi))channels.set(parseInt(m[1],16),parseInt(m[2],16));
+ const page=record(text,'B',1),pageTokens=tokens(page.text,1,404);
+ let newCues='',newStacks='';
+ plan.forEach(([name,source,heads],i)=>{
+  const id=201+i,hex=id.toString(16).padStart(4,'0');if(new RegExp('^[SC],'+hex+',','m').test(text))throw Error('Generated IDs already exist.');
+  newCues+=subsetCue(record(text,'S',source).text,heads,id,name,channels)+nl;
+  const oldHex=source.toString(16).padStart(4,'0');
+  newStacks+=record(text,'C',source).text.replace(/^C,[0-9a-f]+,"[^"]*",/i,'C,'+hex+',"'+name+'",').replace(new RegExp('^0000,0000,'+oldHex+',','m'),'0000,0000,'+hex+',')+nl;
+ });
+ const changes=pageTokens.map((field,i)=>({start:field.start,end:field.end,text:(i%2===0&&i/2<plan.length?201+i/2:0).toString(16).padStart(i%2===0?4:8,'0')}));
+ const newPage=edits(page.text,changes).replace(/^B,0001,"[^"]*",/,'B,0002,"Generated FX",');
+ const endCue=record(text,'S',4).end,endStack=record(text,'C',4).end;
+ return Uint8Array.from(edits(text,[{start:endCue,end:endCue,text:nl+newCues},{start:endStack,end:endStack,text:nl+newStacks},{start:page.end,end:page.end,text:nl+newPage}]),c=>c.charCodeAt(0));
+}
+async function build(bytes){
+ if(!globalThis.crypto?.subtle)throw Error('Use a current version of Edge or Chrome.');
+ const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));if(Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')!==sourceHash)throw Error('Choose the exact original TEST EFFECTS.shw uploaded, not a re-saved or generated file.');
+ return generateEffects(bytes);
+}
+const $=id=>document.getElementById(id);
+$('generate').onclick=async()=>{
+ const file=$('file').files[0];if(!file){$('status').textContent='Choose TEST EFFECTS.shw first.';return;}
+ if(file.size>20000000){$('status').textContent='Use the original show, smaller than 20 MB.';return;}
+ $('generate').disabled=true;
+ try{const output=await build(new Uint8Array(await file.arrayBuffer())),url=URL.createObjectURL(new Blob([output],{type:'application/octet-stream'}));const a=document.createElement('a');a.href=url;a.download='Storm-Generated-FX.shw';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);$('status').textContent='Show exported. Select page 2 (Generated FX) in MagicQ and test one playback at a time.';}
+ catch(e){$('status').textContent=e.message;}finally{$('generate').disabled=false;}
+};
+</script>
+</html>

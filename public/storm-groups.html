@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storm Rig — MagicQ Group Generator</title>
+<style>
+body{max-width:760px;margin:40px auto;padding:20px;font:17px system-ui;background:#101827;color:#edf2fa}p{line-height:1.5}button,input{font:inherit;margin:15px 0;display:block}button{padding:12px;background:#76dfba;border:0;border-radius:6px;cursor:pointer}pre{white-space:pre-wrap}
+</style>
+<h1>Storm Rig — MagicQ Group Generator</h1>
+<p>Choose the exact original TEST FILE.shw you uploaded. This test adds 13 groups, numbered 101–113, and preserves the original show.</p>
+<p>Assumed truss heads: 1, 2, 5, 6, 7, 8.<br>Assumed floor heads: 3, 4, 9, 10, 11, 12.</p>
+<input id="file" type="file" accept=".shw">
+<button id="generate">Generate native .shw</button>
+<pre id="status" role="status">This version generates groups only. Verify the exported show in MagicQ.</pre>
+<script>
+const expectedHash='0d9b6413b9b7094dc124b0c3817a2feab70c4ba87bfa4c0ed94c46168c07c4d9';
+const references=['1','21','41','61','81','a0','bf','de','fd','11c','13b','15a'];
+const plan=[
+ ['All Rig',[1,2,3,4,5,6,7,8,9,10,11,12]],
+ ['All Profiles',[1,2,3,4]],
+ ['All BeamWash',[5,6,7,8,9,10,11,12]],
+ ['Truss',[1,2,5,6,7,8]],
+ ['Floor',[3,4,9,10,11,12]],
+ ['Truss Profiles',[1,2]],
+ ['Floor Profiles',[3,4]],
+ ['Truss BeamWash',[5,6,7,8]],
+ ['Floor BeamWash',[9,10,11,12]],
+ ['Profiles Odd',[1,3]],
+ ['Profiles Even',[2,4]],
+ ['BeamWash Odd',[5,7,9,11]],
+ ['BeamWash Even',[6,8,10,12]]
+];
+async function build(bytes){
+ if(!globalThis.crypto?.subtle)throw Error('Open this file in a current version of Edge or Chrome.');
+ const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+ const hash=Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('');
+ if(hash!==expectedHash)throw Error('Choose the exact original TEST FILE.shw that you uploaded, not a re-saved or generated copy.');
+ let text='';
+ for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));
+ const record=text.match(/^G,0001,"MaverickStorm2P",4,1,21,41,61,21000024,\r?\n([\s\S]*?^;\r?\n)/m);
+ if(!record)throw Error('Expected group template not found.');
+ const nl=text.includes('\r\n')?'\r\n':'\n';
+ let added='';
+ plan.forEach(([name,heads],i)=>{
+  added+='G,'+(101+i).toString(16).padStart(4,'0')+',"'+name+'",'+heads.length.toString(16)+','+heads.map(h=>references[h-1]).join(',')+',21000024,'+nl+record[1]+nl;
+ });
+ const output=new Uint8Array(bytes.length+added.length);
+ output.set(bytes.subarray(0,record.index));
+ for(let i=0;i<added.length;i++)output[record.index+i]=added.charCodeAt(i);
+ output.set(bytes.subarray(record.index),record.index+added.length);
+ return output;
+}
+document.getElementById('generate').onclick=async()=>{
+ const status=document.getElementById('status');
+ const button=document.getElementById('generate');
+ const file=document.getElementById('file').files[0];
+ if(!file){status.textContent='Choose TEST FILE.shw first.';return;}
+ if(file.size>20000000){status.textContent='Choose the original test show, smaller than 20 MB.';return;}
+ button.disabled=true;
+ try{
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  const output=await build(bytes);
+  const url=URL.createObjectURL(new Blob([output],{type:'application/octet-stream'}));
+  const link=document.createElement('a');
+  link.href=url;link.download='Storm-Rig-Generated-Groups.shw';
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  status.textContent='Show exported. Check these groups in MagicQ:\n'+plan.map(([name,heads],i)=>(101+i)+' · '+name+' · '+heads.join(', ')).join('\n');
+ }catch(error){status.textContent=error.message;}
+ finally{button.disabled=false;}
+};
+</script>
+</html>
