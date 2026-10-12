@@ -1,0 +1,23 @@
+ONE-TIME DEVELOPMENT TEST FOR AUTOMATIC AIMING
+
+Use this separate test show, not your event show. Heads 1-4 are Maverick Storm 2 Profiles in 32ch mode. Heads 5-7 are Generic Dimmer target markers, not part of a real rig. All three target markers are at floor height.
+
+1. Load Aiming Reference.shw into MagicQ. Stop playbacks and clear the programmer.
+2. Open PLOT in overhead view. Select ONLY heads 1-4.
+3. Press FOCUS ON TARGET, then click the CENTRE of head 5's marker in Plot. Set intensity and record REF CENTRE.
+4. Clear the programmer, select only heads 1-4 again and repeat with head 6's marker. Record REF LEFT.
+5. Repeat with head 7's marker. Record REF FAR.
+6. Save as Aiming Reference Results.shw and upload it. Include a screenshot of the Plot window to establish the focus controls and view used. Do not move/rotate fixtures or manually adjust their pan/tilt.
+
+Keep the focus height at floor level (0 metres) if a height control is shown. Clicking a marker identifies its X/Y location; it does not automatically select the marker's height. Tell us if MagicQ uses a different focus height or if the marker centres are hard to click accurately.
+
+Coordinates are in metres (native MagicVis X,Y,Z):
+Storm head 1: -3,8,4
+Storm head 2: 3,8,4
+Storm head 3: -3,8,0
+Storm head 4: 3,8,0
+Target head 5 (CENTRE): 0,2,0
+Target head 6 (LEFT): -2,2,0
+Target head 7 (FAR): 2,4,0
+
+The mirrored fixture layout and three target positions allow independent checks of pan direction, tilt convention, mounting and beam-origin assumptions. This test does not validate other fixture modes or all physical mounting orientations.

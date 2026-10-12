@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "name": "Aiming Reference",
+  "rig": [
+    {
+      "profileId": "storm2-profile-32",
+      "quantity": 4,
+      "role": "stage",
+      "layoutKey": "profiles"
+    },
+    {
+      "profileId": "mq-933d883e694f0d078923",
+      "quantity": 3,
+      "role": "decorative",
+      "layoutKey": "markers"
+    }
+  ],
+  "brief": "Static reference for checking native focus. Target markers are test fixtures only.",
+  "event": "corporate",
+  "brand": "White",
+  "movement": false,
+  "chase": false,
+  "aimTargets": false,
+  "circleSize": 10,
+  "room": {
+    "unit": "m",
+    "width": 16,
+    "depth": 12,
+    "stageWidth": 8,
+    "stageDepth": 4,
+    "trussHeight": 4
+  },
+  "stage": {
+    "x": 0,
+    "depth": 0,
+    "height": 0
+  },
+  "places": [
+    "Truss",
+    "Truss",
+    "Floor",
+    "Floor",
+    "Floor",
+    "Floor",
+    "Floor"
+  ],
+  "targets": [
+    {
+      "id": "centre",
+      "name": "Centre marker head 5",
+      "x": 0,
+      "depth": 2,
+      "height": 0
+    }
+  ],
+  "layout": [
+    {
+      "key": "profiles:0",
+      "x": -3,
+      "depth": 8,
+      "height": 4,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "profiles:1",
+      "x": 3,
+      "depth": 8,
+      "height": 4,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "profiles:2",
+      "x": -3,
+      "depth": 8,
+      "height": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "profiles:3",
+      "x": 3,
+      "depth": 8,
+      "height": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "markers:0",
+      "x": 0,
+      "depth": 2,
+      "height": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "markers:1",
+      "x": -2,
+      "depth": 2,
+      "height": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    },
+    {
+      "key": "markers:2",
+      "x": 2,
+      "depth": 4,
+      "height": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0,
+      "custom": true,
+      "targetId": "centre",
+      "target": {
+        "id": "centre",
+        "name": "Centre marker head 5",
+        "x": 0,
+        "depth": 2,
+        "height": 0
+      },
+      "neutralBeam": "down",
+      "panHeading": 0
+    }
+  ]
+}
