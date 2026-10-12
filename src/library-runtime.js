@@ -3,7 +3,7 @@ const verified=new Map(Catalog.fixtures.map(f=>[f.id,f]));
 Catalog.verifiedIds=[...verified.keys()];
 Catalog.fixtures=FixtureLibrary.fixtures.map(f=>{
  const match=verified.get(f.id),supported=Boolean(match&&match.libraryProfileSha256===f.profileSha256);
- return {...f,...(supported?{verifiedQuantity:match.verifiedQuantity,footprint:match.footprint}:{}),exportSupported:supported};
+ return {...f,...(supported?{verifiedQuantity:match.verifiedQuantity,footprint:match.footprint}:{}),exportSupported:Boolean(f.nativePack)};
 });
 const byId=new Map(Catalog.fixtures.map(f=>[f.id,f]));
 const normalize=s=>String(s).normalize('NFKD').replace(/[^A-Za-z0-9]/g,'').toLowerCase();
