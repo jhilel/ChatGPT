@@ -8,7 +8,7 @@ function numericPrefix(text,skip,count){let start=0;for(let i=0;i<skip;i++)start
 function allocate(project,catalog,definitions){
  const byId=new Map(catalog.fixtures.map(f=>[f.id,f])),personalities=new Map(),heads=[];let slot=1;
  for(const row of project.rig){const fixture=byId.get(row.profileId),definition=definitions.get(row.profileId);if(!definition||definition.channels.length!==fixture.logicalChannels)throw Error('Native channel count mismatch: '+fixture.model);const count=definition.channels.length;if(count>512)throw Error(fixture.model+' exceeds one DMX universe; this mode needs module expansion.');if(!personalities.has(row.profileId))personalities.set(row.profileId,{id:personalities.size+2,fixture,definition});const personality=personalities.get(row.profileId);
-  for(let i=0;i<row.quantity;i++){if((slot-1)%512+count>512)slot=Math.ceil(slot/512)*512+1;if(slot+count-1>48*512)throw Error('This rig exceeds the 48-universe MQ70 export capacity.');const id=heads.length+1;heads.push({id,start:slot,universe:Math.floor((slot-1)/512)+1,address:(slot-1)%512+1,count,personality,role:row.role||(/profile|spot|dimmer|fresnel/i.test(fixture.model)?'stage':'decorative'),place:project.places[id-1],geometry:project.layout?.[id-1]});slot+=count;}
+  for(let i=0;i<row.quantity;i++){if((slot-1)%512+count>512)slot=Math.ceil(slot/512)*512+1;if(slot+count-1>48*512)throw Error('This rig exceeds the 48-universe MQ70 export capacity.');const id=heads.length+1;heads.push({id,start:slot,universe:Math.floor((slot-1)/512)+1,address:(slot-1)%512+1,count,personality,role:row.role||(/profile|spot|dimmer|fresnel/i.test(fixture.model)?'stage':'decorative'),place:project.places[id-1],geometry:project.layout?.[id-1]?{...project.layout[id-1],target:project.layout[id-1].targetId?project.targets?.find(t=>t.id===project.layout[id-1].targetId):project.layout[id-1].target}:undefined});slot+=count;}
  }
  return {personalities,heads};
 }
@@ -29,6 +29,7 @@ function compile(project,catalog,definitions,seed,design){
  const groupTemplate=get('G',101),groupTail=groupTemplate.slice(groupTemplate.indexOf('\n'));let groupId=101;
  const group=(name,heads)=>{if(heads.length)add('G',`G,${hex(groupId++,4)},${quote(name)},${hex(heads.length)},${heads.map(h=>hex(h.start)).join(',')},21000024,${groupTail}`);};
  group('All Rig',rig.heads);for(const place of ['Truss','Floor'])group(place,rig.heads.filter(h=>h.place===place));for(const role of ['stage','decorative'])group(role==='stage'?'Stage':'Decorative',rig.heads.filter(h=>h.role===role));for(const p of rig.personalities.values())group(p.fixture.model+' '+p.fixture.mode,rig.heads.filter(h=>h.personality===p));
+ for(const target of project.targets||[])group('Target '+target.name,rig.heads.filter(h=>h.geometry?.targetId===target.id));
  const paletteTemplate=get('F',0xb001),paletteCount=parseInt(paletteTemplate.split(',')[3],16),paletteEnd=numericPrefix(paletteTemplate,1,paletteCount*3),paletteTail=paletteTemplate.slice(paletteEnd.end);let paletteId=0xb000;
  for(const [color,code] of Object.entries(colorCodes)){const values=new Map();for(const h of rig.heads)for(const [offset,value] of colorValues(h.personality.definition,color))values.set(h.start+offset,value);if(values.size)add('F',`F,${hex(paletteId++,4)},${quote(color)},${hex(values.size)},\n${[...values].flatMap(([c,v])=>[hex(c),hex(v),'0']).join(',')},${paletteTail.replace(/^06000020,/,hex(0x06000000+code,8)+',')}`);}
  const staticTemplate=get('S',1),staticCount=parseInt(staticTemplate.split(',')[3],16),staticEnd=numericPrefix(staticTemplate,2,staticCount*2),staticTail=staticTemplate.slice(staticEnd.end),timing=staticTemplate.split('\n')[1];
@@ -48,7 +49,7 @@ function compile(project,catalog,definitions,seed,design){
  for(const [type,value] of generated)if(!emitted.has(type))output+=value;
  for(const p of rig.personalities.values())if(!p.definition.colors.length&&!p.definition.channels.some(([,f,a])=>[16,17,18].includes(a)))warnings.push(p.fixture.model+': requested colors use available wheel ranges; unsupported colors retain locate color.');
  const patch=rig.heads.map(h=>({head:h.id,fixture:h.personality.fixture.model,mode:h.personality.fixture.mode,universe:h.universe,address:h.address,channels:h.count,role:h.role,location:h.place}));
- return {show:new TextEncoder().encode(output),patch,warnings,layoutApplied:rig.heads.every(h=>Boolean(h.geometry)),focusApplied:Boolean(project.aimTargets),focus:rig.heads.filter(h=>h.focus).map(h=>({head:h.id,pan:h.focus.pan,tilt:h.focus.tilt,target:h.geometry.target}))};
+ return {show:new TextEncoder().encode(output),patch,warnings,layoutApplied:rig.heads.every(h=>Boolean(h.geometry)),focusApplied:Boolean(project.aimTargets),focus:rig.heads.filter(h=>h.focus).map(h=>({head:h.id,pan:h.focus.pan,tilt:h.focus.tilt,targetId:h.geometry.targetId,target:h.geometry.target}))};
 }
 globalThis.MagicQRigCompiler={compile,allocate,colorValues,records,staticValues};
 })();
