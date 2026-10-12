@@ -51,5 +51,28 @@ function compile(project,catalog,definitions,seed,design){
  const patch=rig.heads.map(h=>({head:h.id,fixture:h.personality.fixture.model,mode:h.personality.fixture.mode,universe:h.universe,address:h.address,channels:h.count,role:h.role,location:h.place}));
  return {show:new TextEncoder().encode(output),patch,warnings,layoutApplied:rig.heads.every(h=>Boolean(h.geometry)),focusApplied:Boolean(project.aimTargets),focus:rig.heads.filter(h=>h.focus).map(h=>({head:h.id,pan:h.focus.pan,tilt:h.focus.tilt,targetId:h.geometry.targetId,target:h.geometry.target}))};
 }
-globalThis.MagicQRigCompiler={compile,allocate,colorValues,records,staticValues};
+function calibrate(project,catalog,definitions,text,cueName='Correct Aim'){
+ const source=records(text.replace(/\r\n/g,'\n')),label=r=>r.text.match(/^[A-Za-z][0-9]?,[^,]+,"([^"]*)",/)?.[1].trim(),matches=source.filter(r=>r.type==='S'&&label(r).toLowerCase()===cueName.trim().toLowerCase());
+ if(matches.length!==1)throw Error('Find exactly one saved cue named '+cueName+'.');
+ const cue=matches[0].text.split('\n');if(parseInt(cue[0].split(',')[4],16)!==0)throw Error('Use a static calibration cue without movement effects.');
+ const tokens=cue[2].split(',').filter(Boolean);if(tokens.length!==parseInt(cue[0].split(',')[3],16)*2||tokens.some(v=>!/^[0-9a-f]+$/i.test(v)))throw Error('Unsupported calibration cue values.');
+ const values=new Map();for(let i=0;i<tokens.length;i+=2)values.set(parseInt(tokens[i],16),parseInt(tokens[i+1],16));
+ const rig=allocate(project,catalog,definitions),updates=[];
+ for(const head of rig.heads){
+  const saved=source.find(r=>r.type==='H'&&parseInt(r.text.split(',')[1],16)===head.id);if(!saved)throw Error('Calibration show is missing head '+head.id+'.');
+  const refs=saved.text.trim().split('\n').at(-1).split(',').map(v=>parseInt(v,16)),start=refs[0],personality=source.find(r=>r.type==='P'&&parseInt(r.text.split(',')[1],16)===refs[2]);
+  if(label(personality||{text:''})!==head.personality.fixture.nativePersonality)throw Error('Head '+head.id+': calibration personality does not match the rig.');
+  const def=head.personality.definition,coarse=attr=>def.channels.findIndex(([,f,a])=>a===attr&&!(f&8)),fine=attr=>def.channels.findIndex(([,f,a])=>a===attr&&Boolean(f&8));
+  if(coarse(4)<0||coarse(5)<0)continue;
+  const present=[4,5].map(attr=>values.has(start+coarse(attr)));if(!present.some(Boolean))continue;if(!present.every(Boolean))throw Error('Head '+head.id+': record both pan and tilt in the calibration cue.');
+  const fields=[...saved.text.slice(saved.text.indexOf('\n')).matchAll(/"([^"\n]*)"/g)].slice(0,6).map(m=>MagicVisGeometry.decode(m[1]));
+  if(!head.geometry||fields.length!==6||['x','depth','height','rx','ry','rz'].some((key,i)=>Math.abs(fields[i]-Number(MagicVisGeometry.decimal(head.geometry[key])))>.001))throw Error('Head '+head.id+': position or rotation differs. Load the matching rig project first.');
+  const raw=attr=>{const c=values.get(start+coarse(attr)),f=fine(attr),v=f>=0?values.get(start+f):0;if(!Number.isInteger(c)||c>255||!Number.isInteger(v)||v>255)throw Error('Head '+head.id+': record raw pan/tilt including fine channels.');return c*256+v;};
+  const baseline=MagicVisGeometry.aim({...head.geometry,focusCalibration:undefined},def),calibration={panOffset:raw(4)-baseline.pan,tiltOffset:raw(5)-baseline.tilt,sign:baseline.sign,cue:cueName.trim(),target:{x:head.geometry.target.x,depth:head.geometry.target.depth,height:head.geometry.target.height}};
+  const check=MagicVisGeometry.aim({...head.geometry,focusCalibration:calibration},def);if(check.pan!==raw(4)||check.tilt!==raw(5))throw Error('Head '+head.id+': calibration cannot preserve the recorded aim.');
+  updates.push({index:head.id-1,calibration});
+ }
+ if(!updates.length)throw Error('The calibration cue has no matching pan/tilt values.');return updates;
+}
+globalThis.MagicQRigCompiler={compile,allocate,colorValues,records,staticValues,calibrate};
 })();
