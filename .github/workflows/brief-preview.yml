@@ -1,0 +1,36 @@
+name: Brief programming preview
+on:
+  pull_request:
+    branches: [rig-to-show]
+  push:
+    branches: [codex/brief-driven-programming]
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python src/build.py
+        env:
+          PYTHONUTF8: '1'
+      - run: npm test
+      - name: Package browser app
+        run: |
+          mkdir -p preview/Rig-to-Show
+          cp -r public preview/Rig-to-Show/
+          cp README.md preview/Rig-to-Show/
+          cd preview
+          zip -qr Rig-to-Show-preview.zip Rig-to-Show
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rig-to-Show-preview
+          path: preview/Rig-to-Show-preview.zip
+          retention-days: 14
+          if-no-files-found: error
