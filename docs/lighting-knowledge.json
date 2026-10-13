@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-13",
+  "status": "reference-foundation-not-runtime-integrated",
+  "coverage": "Initial entertainment-lighting scope; not exhaustive or a professional certification",
+  "sources": [
+    {
+      "id": "etc-angles",
+      "url": "https://blog.etcconnect.com/stage-lighting-design-part-5",
+      "scope": "Visibility and front, side, back, top and uplight tradeoffs",
+      "review": "page-read"
+    },
+    {
+      "id": "etc-planning",
+      "url": "https://blog.etcconnect.com/stage-lighting-design-part-8",
+      "scope": "Planning process",
+      "review": "page-read"
+    },
+    {
+      "id": "etc-properties",
+      "url": "https://blog.etcconnect.com/stage-lighting-design-part-3",
+      "scope": "Controllable properties and focus",
+      "review": "search-excerpt"
+    },
+    {
+      "id": "magicq-fx",
+      "url": "https://docs.chamsys.co.uk/magicq/1.9.9.x/manual/FX_engine.html",
+      "scope": "FX categories, base values, spread, parts, segments, add modes",
+      "review": "page-read"
+    },
+    {
+      "id": "arri-handbook",
+      "url": "https://www.arri.com/en/learn/lighting/lighting-handbook",
+      "scope": "Camera lighting handbook entry point; detailed review pending",
+      "review": "landing-page-only"
+    },
+    {
+      "id": "signify-flicker",
+      "url": "https://www.signify.com/global/lighting-academy/browser/video/flicker-in-outdoor-sports",
+      "scope": "Flicker training entry point; transcript review pending",
+      "review": "search-excerpt"
+    },
+    {
+      "id": "etc-architecture",
+      "url": "https://www.etcconnect.com/applications/architectural.aspx",
+      "scope": "Architectural control overview",
+      "review": "search-excerpt"
+    },
+    {
+      "id": "chamsys-theatre",
+      "url": "https://chamsyslighting.com/solutions/theatre-education/",
+      "scope": "Theatre control workflows",
+      "review": "search-excerpt"
+    },
+    {
+      "id": "chamsys-worship",
+      "url": "https://chamsyslighting.com/solutions/house-of-worship/",
+      "scope": "Volunteer operation context",
+      "review": "search-excerpt"
+    },
+    {
+      "id": "chamsys-touring",
+      "url": "https://chamsyslighting.com/solutions/touring-concerts/",
+      "scope": "Touring and timecode overview",
+      "review": "search-excerpt"
+    }
+  ],
+  "principles": [
+    {
+      "id": "visibility",
+      "rule": "Choose lighting systems for the subject and available angles before effects.",
+      "sources": [
+        "etc-angles"
+      ],
+      "evidence": "documented-principle"
+    },
+    {
+      "id": "color-separation",
+      "rule": "Use key-light and decorative color as separate design layers.",
+      "sources": [
+        "etc-angles"
+      ],
+      "evidence": "application-recommendation"
+    },
+    {
+      "id": "effect-base",
+      "rule": "Movement requires deliberate base positions and fixture offsets.",
+      "sources": [
+        "magicq-fx"
+      ],
+      "evidence": "documented-principle"
+    },
+    {
+      "id": "capability",
+      "rule": "Generate only attributes supported by the actual fixture definitions.",
+      "sources": [],
+      "evidence": "engineering-requirement"
+    },
+    {
+      "id": "intent",
+      "rule": "Explicit exclusions override proposed effects; missing information becomes an assumption or question.",
+      "sources": [],
+      "evidence": "product-requirement"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "corporate",
+      "description": "Speeches, panel, summit, product launch",
+      "priorities": [
+        "speaker visibility",
+        "brand identity",
+        "screen contrast"
+      ],
+      "states": [
+        "walk-in",
+        "podium",
+        "panel",
+        "presentation",
+        "reveal",
+        "break",
+        "walk-out"
+      ],
+      "requiredContext": [
+        "podium and panel positions",
+        "screens",
+        "brand palette",
+        "camera use"
+      ],
+      "recommendations": [
+        "Keep speaker key lighting steady during speech.",
+        "Use decorative fixtures for brand colors and requested effects.",
+        "Separate presentation and reveal states."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "magicq-fx"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "partial-existing-event-template"
+    },
+    {
+      "id": "awards_gala",
+      "description": "Awards, banquet, fundraiser",
+      "priorities": [
+        "winner visibility",
+        "ceremony focus",
+        "ambient atmosphere"
+      ],
+      "states": [
+        "arrival",
+        "dinner",
+        "speech",
+        "nomination",
+        "winner",
+        "photo",
+        "entertainment",
+        "exit"
+      ],
+      "requiredContext": [
+        "award route",
+        "photo position",
+        "camera use",
+        "running order"
+      ],
+      "recommendations": [
+        "Distinguish dinner ambiance from speech visibility.",
+        "Provide winner and photograph states.",
+        "Trigger reveals manually unless timing is supplied."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "etc-planning"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "partial-existing-event-template"
+    },
+    {
+      "id": "theatre",
+      "description": "Drama, musical, opera",
+      "priorities": [
+        "storytelling",
+        "selective visibility",
+        "continuity"
+      ],
+      "states": [
+        "preset",
+        "scene",
+        "special",
+        "transition",
+        "curtain-call"
+      ],
+      "requiredContext": [
+        "script",
+        "blocking",
+        "scenic changes",
+        "cue triggers"
+      ],
+      "recommendations": [
+        "Build area and special systems from blocking.",
+        "Keep cue triggers explicit.",
+        "Track transitions and attribute ownership; do not invent a script."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "chamsys-theatre"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "dance",
+      "description": "Ballet, contemporary, recital",
+      "priorities": [
+        "body form",
+        "space",
+        "musical phrasing"
+      ],
+      "states": [
+        "preset",
+        "section",
+        "solo",
+        "ensemble",
+        "bow"
+      ],
+      "requiredContext": [
+        "choreography",
+        "side positions",
+        "costumes",
+        "music sections"
+      ],
+      "recommendations": [
+        "Prefer available side-light systems for sculpting.",
+        "Retain visibility where the brief requires it.",
+        "Use section changes rather than continuous effects by default."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "etc-planning"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "concert",
+      "description": "Band, acoustic, touring",
+      "priorities": [
+        "performer visibility",
+        "musical structure",
+        "dynamic range"
+      ],
+      "states": [
+        "walk-in",
+        "verse",
+        "chorus",
+        "solo",
+        "breakdown",
+        "finale",
+        "encore"
+      ],
+      "requiredContext": [
+        "set list",
+        "performer positions",
+        "song structure",
+        "live or timecode operation"
+      ],
+      "recommendations": [
+        "Separate performer key light from beam effects.",
+        "Build contrasting energy levels.",
+        "Do not infer exact musical hits without timing evidence."
+      ],
+      "sourceIds": [
+        "magicq-fx",
+        "chamsys-touring"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "partial-existing-event-template"
+    },
+    {
+      "id": "dj_club",
+      "description": "DJ, electronic music, party",
+      "priorities": [
+        "rhythm",
+        "contrast",
+        "spatial movement"
+      ],
+      "states": [
+        "ambient",
+        "build",
+        "drop",
+        "breakdown",
+        "peak",
+        "close"
+      ],
+      "requiredContext": [
+        "tempo or tap control",
+        "dance-floor location",
+        "effect exclusions"
+      ],
+      "recommendations": [
+        "Use spatial phase and intensity variation deliberately.",
+        "Provide static recovery looks.",
+        "Keep movement, intensity and color independently selectable."
+      ],
+      "sourceIds": [
+        "magicq-fx"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "wedding",
+      "description": "Ceremony, reception, first dance",
+      "priorities": [
+        "faces",
+        "photography",
+        "atmosphere"
+      ],
+      "states": [
+        "ceremony",
+        "entrance",
+        "dinner",
+        "toast",
+        "first-dance",
+        "party",
+        "exit"
+      ],
+      "requiredContext": [
+        "couple positions",
+        "photographer needs",
+        "schedule",
+        "palette"
+      ],
+      "recommendations": [
+        "Separate photo and toast visibility from party effects.",
+        "Treat ceremony and reception as distinct operating sections.",
+        "Provide a restrained first-dance option."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "etc-planning"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "worship",
+      "description": "Service, sermon, worship music",
+      "priorities": [
+        "speaker visibility",
+        "musical expression",
+        "simple operation"
+      ],
+      "states": [
+        "welcome",
+        "music",
+        "reading",
+        "sermon",
+        "prayer",
+        "close"
+      ],
+      "requiredContext": [
+        "lectern",
+        "performer positions",
+        "camera use",
+        "operator experience"
+      ],
+      "recommendations": [
+        "Provide clear sermon and music states.",
+        "Use consistent labels and a recovery state.",
+        "Keep effect choices separate from essential visibility."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "chamsys-worship"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "expo",
+      "description": "Exhibition, booth, product demonstration",
+      "priorities": [
+        "product visibility",
+        "branding",
+        "attention"
+      ],
+      "states": [
+        "open",
+        "ambient",
+        "demo",
+        "presentation",
+        "close"
+      ],
+      "requiredContext": [
+        "display materials",
+        "reflective surfaces",
+        "screens",
+        "operating hours"
+      ],
+      "recommendations": [
+        "Separate product illumination from decorative accents.",
+        "Control screen spill.",
+        "Use repeatable demonstration states."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "etc-architecture"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "partial-existing-event-template"
+    },
+    {
+      "id": "broadcast",
+      "description": "Studio, streamed panel, filmed event",
+      "priorities": [
+        "camera exposure",
+        "color consistency",
+        "background separation"
+      ],
+      "states": [
+        "key",
+        "fill",
+        "back",
+        "background",
+        "presentation"
+      ],
+      "requiredContext": [
+        "camera settings",
+        "frame rate",
+        "shutter",
+        "white balance",
+        "fixture flicker data"
+      ],
+      "recommendations": [
+        "Keep camera requirements explicit.",
+        "Do not equate DMX intensity with exposure.",
+        "Flag unverified flicker and color performance."
+      ],
+      "sourceIds": [
+        "arri-handbook",
+        "signify-flicker"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "fashion",
+      "description": "Runway, fashion presentation",
+      "priorities": [
+        "garment visibility",
+        "consistent coverage",
+        "photography"
+      ],
+      "states": [
+        "preset",
+        "runway",
+        "photo-end",
+        "finale"
+      ],
+      "requiredContext": [
+        "runway path",
+        "camera locations",
+        "garment colors",
+        "cue order"
+      ],
+      "recommendations": [
+        "Prioritize repeatable visibility along the runway.",
+        "Keep background effects separate from garment lighting.",
+        "Check coverage at walking positions."
+      ],
+      "sourceIds": [
+        "etc-angles",
+        "etc-planning"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "architectural_museum",
+      "description": "Architectural scenes, gallery, museum",
+      "priorities": [
+        "object emphasis",
+        "comfort",
+        "repeatability"
+      ],
+      "states": [
+        "open",
+        "display",
+        "event",
+        "close"
+      ],
+      "requiredContext": [
+        "material restrictions",
+        "conservation requirements",
+        "operating schedule",
+        "control interface"
+      ],
+      "recommendations": [
+        "Use object and area zones.",
+        "Do not invent conservation exposure limits.",
+        "Keep emergency and statutory lighting outside the show generator."
+      ],
+      "sourceIds": [
+        "etc-architecture"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "sports",
+      "description": "Sports presentation and ceremonies",
+      "priorities": [
+        "player and camera visibility",
+        "presentation separation"
+      ],
+      "states": [
+        "pre-show",
+        "introduction",
+        "ceremony",
+        "celebration",
+        "post-show"
+      ],
+      "requiredContext": [
+        "sport",
+        "broadcast requirements",
+        "field-lighting responsibility",
+        "presentation zones"
+      ],
+      "recommendations": [
+        "Treat entertainment presentation separately from competition lighting.",
+        "Do not claim compliance from a DMX show.",
+        "Check broadcast flicker requirements."
+      ],
+      "sourceIds": [
+        "signify-flicker"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    },
+    {
+      "id": "outdoor_festival",
+      "description": "Outdoor event overlay",
+      "priorities": [
+        "ambient-light adaptation",
+        "visibility",
+        "reliable operation"
+      ],
+      "states": [
+        "day",
+        "dusk",
+        "night",
+        "recovery"
+      ],
+      "requiredContext": [
+        "ambient light",
+        "weather-rated equipment",
+        "venue restrictions",
+        "operating times"
+      ],
+      "recommendations": [
+        "Apply outdoor context to the event scenario.",
+        "Do not assume haze or beam visibility in daylight.",
+        "Leave rigging and electrical approval to the production process."
+      ],
+      "sourceIds": [
+        "etc-planning"
+      ],
+      "evidence": "application-synthesis",
+      "runtimeSupport": "not-implemented"
+    }
+  ]
+}
