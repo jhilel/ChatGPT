@@ -40,14 +40,50 @@ function validateProject(project,catalog){
  if(!Array.isArray(project.places)||project.places.length!==total||project.places.some(p=>!['Truss','Floor'].includes(p)))errors.push('Set a location for every head in the rig.');
  return [...new Set(errors)];
 }
+function interpretBrief(project){
+ const brief=project.brief||'',clauses=brief.split(/[.;!\n]+/).map(s=>s.trim()).filter(Boolean);
+ const excluded=term=>clauses.some(c=>new RegExp('\\b(?:no|without|avoid|disable)\\s+(?:any\\s+)?'+term+'\\b','i').test(c));
+ const palette=project.brand!=='auto'&&colors.includes(project.brand)?[project.brand]:colors.filter(c=>new RegExp('\\b'+c+'\\b','i').test(brief)&&!excluded(c));
+ const staticOnly=/\bstatic only\b/i.test(brief);
+ const requests={
+  stageWash:/\bstage\s*wash\b/i.test(brief)&&!excluded('stage\\s*wash'),
+  ballyhoo:/\b(?:ballyhoo|bally)\b/i.test(brief)&&!excluded('(?:ballyhoo|bally)'),
+  chase:/\b(?:dim(?:mer)?\s*chase|intensity\s*chase)\b/i.test(brief)&&!excluded('(?:dim(?:mer)?\\s*chase|intensity\\s*chase)'),
+  circle:/\bcircle\b/i.test(brief)&&!excluded('circle')
+ };
+ const movementAllowed=Boolean(project.movement)&&!staticOnly&&!excluded('(?:movement|moving lights)');
+ const chaseAllowed=Boolean(project.chase)&&!staticOnly&&!excluded('(?:chase|dim(?:mer)?\\s*chase|intensity\\s*chase|flashing)');
+ return {palette:palette.length?palette:['Blue'],requests,movementAllowed,chaseAllowed,staticOnly};
+}
 function design(project,defaults){
- const event=inferEvent(project.brief,project.event),looks=JSON.parse(JSON.stringify(defaults[event]));
- let brand=project.brand;
- if(brand==='auto')brand=colors.find(c=>new RegExp('\\b'+c+'\\b','i').test(project.brief))||'Blue';
- for(const look of looks){if(/^Brand /i.test(look[0])){look[0]='Brand '+brand;look[4]=brand;}else if(/Walk In|Arrival|Ambient|Break/.test(look[0]))look[4]=brand;}
- const circle=project.movement&&!/\b(no movement|static only|no moving lights)\b/i.test(project.brief);
- const chase=project.chase&&!/\b(no chase|no flashing|static only)\b/i.test(project.brief);
- return {event,brand,looks,circle,chase,decisions:['Event template: '+event,'Decorative color: '+brand,'Movement effects: '+(circle?'included':'omitted'),'Intensity chases: '+(chase?'included':'omitted')],limitations:['Fixture positions are exported to MagicVis. Target-based focus requires verified neutral beam, rotation and pan/tilt calibration.','The native compiler needs testing in MagicQ for new fixture modes; parent and compound personalities require module expansion.','The generator uses local rules, not a trained lighting designer or photometric simulation.','Check focus, exposure, fixture behavior and playback on site.']};
+ const event=inferEvent(project.brief,project.event),intent=interpretBrief(project),brand=intent.palette[0];
+ const looks=JSON.parse(JSON.stringify(defaults[event]));
+ for(const look of looks){
+  if(/^Brand /i.test(look[0])){look[0]='Brand '+brand;look[4]=brand;}
+  else if(/Walk In|Arrival|Ambient|Break/.test(look[0]))look[4]=brand;
+ }
+ const tailored=intent.requests.stageWash||intent.requests.ballyhoo||intent.requests.chase||intent.requests.circle||intent.palette.length>1;
+ if(tailored&&event==='corporate'){
+  looks.splice(0,looks.length,
+   ['Walk In',30,30,'White',brand],
+   ['Stage Wash',70,0,'White','White'],
+   ['Speeches',70,20,'White',brand],
+   ...intent.palette.map(color=>['Brand '+color,0,40,'White',color]),
+   ['Break',30,25,'White',intent.palette.at(-1)],
+   ['Walk Out',40,30,'White',brand],
+   ['Blackout',0,0,'White','White']);
+ }
+ const circle=intent.movementAllowed&&(!tailored||intent.requests.circle);
+ const chase=intent.chaseAllowed&&(!tailored||intent.requests.chase);
+ const program=looks.map(look=>({name:look[0],type:'static',status:'exportable',stage:{intensity:look[1],color:look[3]},decorative:{intensity:look[2],color:look[4]}}));
+ if(chase)program.push({name:'Dimmer Chase',type:'effect',status:'exportable',scope:tailored?'decorative':'all',order:'left-to-right'});
+ if(circle)program.push({name:'Circle',type:'effect',status:'exportable'});
+ if(intent.requests.ballyhoo)program.push({name:'Ballyhoo',type:'effect',status:intent.movementAllowed?'pending-native-export':'excluded',scope:'decorative moving fixtures'});
+ const decisions=['Event: '+event,'Decorative palette: '+intent.palette.join(' / '),'Stage wash: steady white; color looks use decorative fixtures.'];
+ if(tailored)decisions.push('Dimmer chase uses decorative fixtures; stage fixtures remain independently lit.','Separate brand-color playbacks are generated; a simultaneous two-color split is not yet implemented.');
+ decisions.push('Movement circles: '+(circle?'included':'omitted'),'Dimmer chase: '+(chase?'included':'omitted'));
+ if(intent.requests.ballyhoo)decisions.push(intent.movementAllowed?'Ballyhoo requested: native ballyhoo export is pending; no substitute circle is generated.':'Ballyhoo omitted because movement is disabled.');
+ return {event,brand,palette:intent.palette,looks,circle,chase,program,effectScope:tailored?'decorative':'all',decisions,limitations:['Ballyhoo and simultaneous multi-color fixture splits are not yet exported.','Stage and decorative roles must be assigned correctly in the rig.','Fixture positions and target calibration must be verified in MagicVis.','This offline interpreter supports named looks and constraints; unrecognized instructions require manual review.','Verify generated programming in MagicQ and on site.']};
 }
 function cleanFactoryProgramming(bytes){
  const native=globalThis.StormNative,text=native.byteText(bytes),changes=[];
@@ -65,5 +101,5 @@ async function compile(project,catalog,seed){
  const compiled=globalThis.MagicQRigCompiler.compile(project,catalog,definitions,seed,result);
  return {...compiled,design:result};
 }
-globalThis.StormBrief={inferEvent,validateProject,design,compile,cleanFactoryProgramming};
+globalThis.StormBrief={interpretBrief,inferEvent,validateProject,design,compile,cleanFactoryProgramming};
 })();
