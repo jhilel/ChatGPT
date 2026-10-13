@@ -56,7 +56,7 @@ function interpretBrief(project){
  return {palette:palette.length?palette:['Blue'],requests,movementAllowed,chaseAllowed,staticOnly};
 }
 const scenarioRules=[
- ['wedding',/\b(wedding|reception|first dance|ceremony)\b/i,[['Ceremony',75,15],['Entrance',65,40],['Dinner',25,25],['Toasts',75,20],['First Dance',55,35],['Party',45,65],['Exit',50,25]]],
+ ['wedding',/\b(wedding|reception|first dance)\b/i,[['Ceremony',75,15],['Entrance',65,40],['Dinner',25,25],['Toasts',75,20],['First Dance',55,35],['Party',45,65],['Exit',50,25]]],
  ['dance',/\b(ballet|contemporary dance|dance recital)\b/i,[['Preset',20,20],['Solo',60,25],['Ensemble',65,45],['Sculpted Color',35,60],['Bows',75,40]]],
  ['theatre',/\b(theatre|theater|drama|musical|opera|play)\b/i,[['Preset',20,20],['Stage Visibility',65,25],['Special',70,15],['Scene Contrast',40,45],['Curtain Call',80,40]]],
  ['worship',/\b(worship|church|sermon|prayer)\b/i,[['Welcome',65,25],['Worship Music',55,55],['Reading',75,20],['Sermon',75,15],['Prayer',45,20],['Close',55,25]]],
@@ -73,7 +73,7 @@ const scenarioRules=[
 ];
 function scenarioFor(project){
  if(project.event&&project.event!=='auto')return {id:project.event,states:null,outdoor:/\b(outdoor|festival)\b/i.test(project.brief)};
- const rule=scenarioRules.find(([,pattern])=>pattern.test(project.brief||''));
+ const rule=scenarioRules.find(([id,pattern])=>pattern.test(project.brief||'')&&!(id==='dj'&&/\b(concert|band)\b/i.test(project.brief||'')));
  return {id:rule?.[0]||'corporate',states:rule?.[2]||null,outdoor:/\b(outdoor|festival)\b/i.test(project.brief||'')};
 }
 
