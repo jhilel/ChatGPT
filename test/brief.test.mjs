@@ -5,3 +5,19 @@ test('unknown fixtures, invalid quantities and room geometry block export',async
 test('no-upload export creates native programming and removes factory test cues',async()=>{const ctx=setup();const p=project();for(const [brief,event] of [['Conference summit','corporate'],['Awards dinner gala','gala'],['Expo booth','expo'],['DJ concert','band']]){p.brief=brief;const result=await ctx.StormBrief.compile(p,ctx.Catalog,seed);const text=Buffer.from(result.show).toString('latin1');assert.equal(result.design.event,event);assert.equal((text.match(/^S,/gm)||[]).length,14);assert.equal((text.match(/^C,/gm)||[]).length,14);assert.equal((text.match(/^B,/gm)||[]).length,2);assert.match(text,/^B,0001,"Event Looks",/m);assert.doesNotMatch(text,/^[SC],[0-9a-f]+,"(?:Intensity Chase|Circle|Test[^"]*)",/m);assert.doesNotMatch(text,/Users\/|DESKTOP-/);}});
 test('static-only constraints exclude FX cues and their playback assignments',async()=>{const ctx=setup();const p=project();p.brief='Summit static only green branding';const result=await ctx.StormBrief.compile(p,ctx.Catalog,seed);assert.equal(result.design.circle,false);assert.equal(result.design.chase,false);assert.equal(result.design.brand,'Green');const text=Buffer.from(result.show).toString();assert.equal((text.match(/^S,/gm)||[]).length,8);assert.doesNotMatch(text,/^[SC],00c[9-f],/m);assert.doesNotMatch(text,/^B,0002,/m);});
 test('standalone output contains the factory data but no file-upload field or external dependency',()=>{const html=fs.readFileSync(new URL('public/rig-to-show.html',root),'utf8');assert.doesNotMatch(html,/<input[^>]+type=["']file["']/i);assert.doesNotMatch(html,/<script[^>]+src=|<link[^>]+href=/i);assert.match(html,/const FactorySeed=/);assert.match(html,/Generate MagicQ \.shw/);});
+
+test('summit brief plans both colors, steady wash and a decorative chase without substituting circle for ballyhoo',()=>{
+ const ctx=setup(),p=project();p.brief='Corporate summit with red and blue. I need stagewash, ballyhoo and dim chase';p.brand='auto';p.movement=true;p.chase=true;
+ const d=ctx.StormBrief.design(p,ctx.StormNative.defaults);
+ assert.deepEqual(Array.from(d.palette),['Red','Blue']);
+ assert.ok(d.looks.some(l=>l[0]==='Stage Wash'&&l[1]===70&&l[3]==='White'));
+ assert.ok(d.looks.some(l=>l[0]==='Brand Red'));assert.ok(d.looks.some(l=>l[0]==='Brand Blue'));
+ assert.equal(d.chase,true);assert.equal(d.circle,false);assert.equal(d.effectScope,'decorative');
+ assert.equal(d.program.find(l=>l.name==='Ballyhoo').status,'pending-native-export');
+});
+test('explicit constraints take precedence over requested effects',()=>{
+ const ctx=setup(),p=project();p.brand='auto';p.movement=true;p.chase=true;
+ for(const brief of ['red and blue ballyhoo dim chase; static only','red and blue ballyhoo dim chase; no movement; no dim chase']){
+  p.brief=brief;const d=ctx.StormBrief.design(p,ctx.StormNative.defaults);assert.equal(d.circle,false);assert.equal(d.chase,false);assert.equal(d.program.find(l=>l.name==='Ballyhoo').status,'excluded');
+ }
+});
