@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "aimingModelVersion": 2,
   "name": "Aiming Reference",
   "rig": [
     {

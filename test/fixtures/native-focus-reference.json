@@ -1,0 +1,10 @@
+{
+  "source": "MagicQ 1.9.8.3 FOCUS ON TARGET reference cues; no manual pan/tilt overrides",
+  "nativePositions": [[-3,8,4],[3,8,4],[-3,8,0],[3,8,0]],
+  "targetMethod": "Least-squares intersection of the four recorded native rays; inferred coordinates, not independently measured click points. Maximum ray residual is 0.0013 metres.",
+  "cues": [
+    {"name":"REF CENTRE","nativeTarget":[0.02121,0.46232,0.02191],"values":[[37284,41220],[28298,41185],[21894,27261],[43639,27332]]},
+    {"name":"REF LEFT","nativeTarget":[-1.98459,0.46239,0.04375],"values":[[34514,39940],[26510,42893],[22140,30831],[43629,24329]]},
+    {"name":"REF FAR","nativeTarget":[2.02694,0.46225,0.0213],"values":[[39034,42946],[31100,39955],[21874,24272],[43535,30913]]}
+  ]
+}

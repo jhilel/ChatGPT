@@ -66,9 +66,9 @@ function calibrate(project,catalog,definitions,text,cueName='Correct Aim'){
   if(coarse(4)<0||coarse(5)<0)continue;
   const present=[4,5].map(attr=>values.has(start+coarse(attr)));if(!present.some(Boolean))continue;if(!present.every(Boolean))throw Error('Head '+head.id+': record both pan and tilt in the calibration cue.');
   const fields=[...saved.text.slice(saved.text.indexOf('\n')).matchAll(/"([^"\n]*)"/g)].slice(0,6).map(m=>MagicVisGeometry.decode(m[1]));
-  if(!head.geometry||fields.length!==6||['x','depth','height','rx','ry','rz'].some((key,i)=>Math.abs(fields[i]-Number(MagicVisGeometry.decimal(head.geometry[key])))>.001))throw Error('Head '+head.id+': position or rotation differs. Load the matching rig project first.');
+  if(!head.geometry||fields.length!==6||['x','height','depth','rx','ry','rz'].some((key,i)=>Math.abs(fields[i]-Number(MagicVisGeometry.decimal(head.geometry[key])))>.001))throw Error('Head '+head.id+': position or rotation differs. Load the matching rig project first.');
   const raw=attr=>{const c=values.get(start+coarse(attr)),f=fine(attr),v=f>=0?values.get(start+f):0;if(!Number.isInteger(c)||c>255||!Number.isInteger(v)||v>255)throw Error('Head '+head.id+': record raw pan/tilt including fine channels.');return c*256+v;};
-  const baseline=MagicVisGeometry.aim({...head.geometry,focusCalibration:undefined},def),calibration={panOffset:raw(4)-baseline.pan,tiltOffset:raw(5)-baseline.tilt,sign:baseline.sign,cue:cueName.trim(),target:{x:head.geometry.target.x,depth:head.geometry.target.depth,height:head.geometry.target.height}};
+  const baseline=MagicVisGeometry.aim({...head.geometry,focusCalibration:undefined},def),calibration={modelVersion:2,panOffset:raw(4)-baseline.pan,tiltOffset:raw(5)-baseline.tilt,sign:baseline.sign,cue:cueName.trim(),target:{x:head.geometry.target.x,depth:head.geometry.target.depth,height:head.geometry.target.height}};
   const check=MagicVisGeometry.aim({...head.geometry,focusCalibration:calibration},def);if(check.pan!==raw(4)||check.tilt!==raw(5))throw Error('Head '+head.id+': calibration cannot preserve the recorded aim.');
   updates.push({index:head.id-1,calibration});
  }
