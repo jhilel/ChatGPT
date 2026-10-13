@@ -11,7 +11,7 @@ function inferEvent(brief,explicit='auto'){
  return 'corporate';
 }
 function validateProject(project,catalog){
- const errors=[];const quantities=new Map(),index=catalogIndex(catalog);
+ const errors=[];if(globalThis.ShowPlanner&&project)errors.push(...ShowPlanner.validate(project));const quantities=new Map(),index=catalogIndex(catalog);
  if(!project||!Array.isArray(project.rig))return ['Enter your fixture rig.'];
  for(const row of project.rig){
   const fixture=index.byId.get(row.profileId);

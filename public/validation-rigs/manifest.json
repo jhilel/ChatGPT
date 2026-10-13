@@ -1,0 +1,38 @@
+[
+  {
+    "id": "storm2-profile-32",
+    "manufacturer": "Chauvet Pro",
+    "model": "Maverick Storm 2 Profile",
+    "mode": "32ch",
+    "show": "storm2-profile-32.shw",
+    "rig": "storm2-profile-32.json",
+    "status": "generated and structurally tested; console validation pending"
+  },
+  {
+    "id": "storm2-beamwash-basic1",
+    "manufacturer": "Chauvet Pro",
+    "model": "Maverick Storm 2 BeamWash",
+    "mode": "Single Basic1",
+    "show": "storm2-beamwash-basic1.shw",
+    "rig": "storm2-beamwash-basic1.json",
+    "status": "generated and structurally tested; console validation pending"
+  },
+  {
+    "id": "mq-2813fde4543e39b40212",
+    "manufacturer": "Martin",
+    "model": "Mac Viper Profile",
+    "mode": "Basic",
+    "show": "mq-2813fde4543e39b40212.shw",
+    "rig": "mq-2813fde4543e39b40212.json",
+    "status": "generated and structurally tested; console validation pending"
+  },
+  {
+    "id": "mq-9fb85901eb67a3435c32",
+    "manufacturer": "Robe",
+    "model": "iSpiider",
+    "mode": "Mode1",
+    "show": "mq-9fb85901eb67a3435c32.shw",
+    "rig": "mq-9fb85901eb67a3435c32.json",
+    "status": "generated and structurally tested; console validation pending"
+  }
+]

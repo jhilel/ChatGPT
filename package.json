@@ -1,13 +1,82 @@
 {
   "name": "rig-to-show",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "build": "python3 src/build.py"
+    "build": "python3 src/build.py",
+    "desktop": "electron .",
+    "package:win": "electron-builder --win nsis --publish never",
+    "package:mac": "electron-builder --mac dmg --publish never",
+    "package:linux:test": "electron-builder --linux dir --publish never",
+    "test:desktop": "node desktop/smoke.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "playwright": "1.64.0"
+  },
+  "description": "Offline lighting show planning and native MagicQ show generation",
+  "author": "Rig to Show",
+  "main": "desktop/main.cjs",
+  "build": {
+    "appId": "com.rigtoshow.desktop",
+    "productName": "Rig to Show",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**",
+      "public/rig-to-show.html",
+      "public/profiles/**",
+      "public/fixture-verification.csv",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Rig-to-Show-${version}-Windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "Rig-to-Show-${version}-macOS-${arch}.${ext}"
+    }
   }
 }

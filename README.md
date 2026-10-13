@@ -100,3 +100,11 @@ The exporter maps room X/height/depth into native X/Y/Z, applies Euler rotations
 All 69,583 source modes were audited. 66,484 passed native export structural checks; 8,282 also passed mathematical aiming and focused static/FX serialization checks. 81 definitions failed range-reference checks and 3,018 modes need unsupported parsing, module expansion or oversized-mode support. 11,917 structurally valid modes lack usable unique pan/tilt data and cannot use automatic targeting. The app shows these distinctions and links a per-mode CSV. See [the audit scope and repeatable commands](docs/fixture-verification.md).
 
 These are automated structural/mathematical results. MagicVis confirmation exists for the corrected Storm 2 Profile 32ch reference rig; physical output and all other fixture modes remain unverified in MagicQ/MagicVis.
+
+## Mounting, event focus and operating tools
+
+Mount presets, front/side orientation previews, shared-point/line/area/fan targeting and stage/podium/dance-floor/audience presets are now available. Optional operating pages separate intensity, colors, positions and movement presets; position palettes and a playback-map download are included. Valid layouts autosave locally. Scene-only MVR exports room floor, stage, truss and reference boxes with persistent IDs. See [how to use the tools](docs/show-planning.md).
+
+## Windows/macOS desktop builds
+
+An offline Electron application and native-platform installer workflow are included. The desktop renderer has been exercised on Linux; Windows portable and Intel/Apple Silicon macOS app ZIPs were cross-built. Native-platform launches, signed releases and automatic updates are not yet confirmed/configured. See [desktop builds and download workflow](docs/desktop-builds.md). MagicVis scene import and grandMA2/3 native show export remain pending console-specific verification.

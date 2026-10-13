@@ -1,0 +1,18 @@
+import { _electron as electron } from 'playwright';
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'..'),directory=fs.mkdtempSync(path.join(os.tmpdir(),'rig-desktop-'));
+const executable=process.env.RIG_PACKAGED_EXECUTABLE;
+const args=process.platform==='linux'?['--no-sandbox','--disable-gpu','--disable-dev-shm-usage']:[];if(!executable)args.push(root);
+const application=await electron.launch({...(executable?{executablePath:executable}:{}),args,env:{...process.env,RIG_TO_SHOW_USER_DATA:path.join(directory,'profile'),RIG_TO_SHOW_HEADLESS:'1'},timeout:30000});
+try{
+ const window=await application.firstWindow();const errors=[];window.on('pageerror',e=>errors.push(e.message));await window.waitForFunction(()=>document.getElementById('startup').hidden,{timeout:30000});
+ await application.evaluate((electron,directory)=>{globalThis.rigDownloads=[];electron.session.defaultSession.on('will-download',(_event,item)=>{const file=directory+'/'+item.getFilename();item.setSavePath(file);item.once('done',(_event,state)=>globalThis.rigDownloads.push({file,state}));});},directory);
+ console.log('desktop: ready');await window.locator('#mounting').selectOption('side-left');assert.equal(await window.locator('#layoutRZ').inputValue(),'-90');
+ await window.locator('#targetPattern').selectOption('fan');await window.locator('#fanAngle').fill('20');await window.locator('#fanAngle').press('Tab');
+ await window.locator('#movementSpeed').fill('1.5');await window.locator('#movementSpeed').press('Tab');await window.locator('#venueGeometry summary').click();await window.locator('#addTruss').click();await window.locator('#addSceneBox').click();
+ console.log('desktop: saving');await window.locator('#saveRig').click();console.log('desktop: scene');await window.locator('#sceneMvr').click();console.log('desktop: generating');await window.locator('#generate').click();
+ await window.waitForFunction(()=>document.getElementById('status').textContent.includes('Native show exported'),{timeout:30000});console.log('desktop: playback guide');await window.locator('#playbackGuide').click();
+ for(let i=0;i<100;i++){const downloads=await application.evaluate(()=>globalThis.rigDownloads);if(downloads.length===4)break;await new Promise(resolve=>setTimeout(resolve,100));}
+ const downloads=await application.evaluate(()=>globalThis.rigDownloads);assert.equal(downloads.length,4);assert.ok(downloads.every(d=>d.state==='completed'));for(const d of downloads)assert.ok(fs.statSync(d.file).size>0);
+ const saved=JSON.parse(fs.readFileSync(path.join(directory,'rig-project.json')));assert.equal(saved.layout[0].mounting,'side-left');assert.equal(saved.targets[0].pattern,'fan');assert.equal(saved.movementSpeed,1.5);assert.equal(saved.scene.trusses.length,1);assert.equal(saved.scene.objects.length,1);assert.match(fs.readFileSync(path.join(directory,'playback-map.csv'),'utf8'),/Positions/);await window.reload();await window.waitForFunction(()=>document.getElementById('startup').hidden);assert.equal(await window.locator('#movementSpeed').inputValue(),'1.5');assert.equal(await window.locator('#mounting').inputValue(),'side-left');assert.match(await window.locator('#status').textContent(),/Autosaved rig restored/);assert.equal(errors.length,0);console.log('Native desktop smoke passed: mounting, patterns, venue scene, rig save, native show and playback-map downloads.');
+}finally{let closed=false,timer;await Promise.race([application.close().then(()=>{closed=true;}),new Promise(resolve=>{timer=setTimeout(resolve,5000);})]);clearTimeout(timer);if(!closed)application.process().kill('SIGTERM');fs.rmSync(directory,{recursive:true,force:true});}

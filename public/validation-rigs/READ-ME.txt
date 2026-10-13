@@ -1,0 +1,13 @@
+ONE-TIME CONSOLE VALIDATION PACK
+
+See manifest.json for the exact four fixture modes. These shows are development tests, not event files. They contain four fixtures and three Generic Dimmer target markers (heads 5-7). The markers are test aids, not part of a physical rig; keep their intensity at zero.
+
+Load a show into MagicQ/MagicVis. Heads 1 and 2 hang at 4 m; heads 3 and 4 are upright at floor level. All are 8 m down the room. Stage height is 1 m. Verify the mounting and fixture personality before comparing beams.
+
+1. Select heads 1-4 and open the Positions page. Compare generated focus with native PLOT -> FOCUS ON TARGET for marker 5 (centre). Keep the focus height at 1 m when comparing; a click alone may use the Plot's previous focus height.
+2. Repeat for marker 6 (left, 1 m high) and marker 7 (audience point, 1.5 m high).
+3. Check the stage-wash and mirrored-fan position cues. Beam centre targets should follow the plan; equal-looking footprints are not guaranteed for different mounting heights.
+4. Check color controls, blackout and intensity pages. The intensity pages are HTP playbacks, not multiplicative group masters; release event looks to lower intensity using them.
+5. Save any native reference cues and the resulting show, noting software version, fixture mode, pan/tilt inversion settings and focus height.
+
+Fixture groups, playbacks, modes and geometry are generated; successful structural tests do not certify MagicVis or physical behavior. We need actual console observations before changing a mode's runtime-verification status.
