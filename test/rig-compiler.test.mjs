@@ -16,3 +16,10 @@ test('generated windows use contiguous first slots and preserve cue/playback lin
  const assigned=[];for(const page of of('B')){const data=page.slice(page.indexOf('\n')).match(/[0-9a-f]+/gi).slice(0,404);const slots=data.filter((_,i)=>i%2===0).map(v=>parseInt(v,16));const occupied=slots.filter(Boolean);assert.deepEqual(slots.slice(0,occupied.length),occupied);assert.ok(slots.slice(occupied.length).every(v=>v===0));assigned.push(...occupied);}
  assert.deepEqual(assigned,ids('C'));
 });
+test('blackout clears unflagged white/amber emitters in additive LED modes and closes shutters',()=>{
+ const ctx=setup(),led={channels:[['Red',0x2022,16],['Green',0x2022,17],['Blue',0x2022,18],['White',0x22,19],['Amber',0x22,27]],locate:[[0,255],[1,255],[2,255],[3,255],[4,255]],colors:[['White',0x26,[[0,255],[1,255],[2,255],[3,255],[4,255]]]],ranges:[]},heads=[{start:1,role:'stage',personality:{definition:led}}];const black=ctx.MagicQRigCompiler.staticValues(heads,['Blackout',0,0,'White','White']);assert.deepEqual(Array.from(black.values()),[0,0,0,0,0]);const half=ctx.MagicQRigCompiler.staticValues(heads,['Half',50,50,'White','White']);assert.deepEqual(Array.from(half.values()),[127,127,127,127,127]);
+ const shutter={channels:[['Shutter',0x12,2]],locate:[[0,255]],colors:[],ranges:[[0,'Closed',0,10,0,0],[0,'Open',11,255,0,0]]};assert.equal(ctx.MagicQRigCompiler.staticValues([{start:1,role:'stage',personality:{definition:shutter}}],['Blackout',0,0,'White','White']).get(1),0);
+});
+test('factory record cache invalidates when seed bytes change',async()=>{
+ const ctx=setup(),f=ctx.StormLibrary.byId.get('storm2-profile-32'),defs=await definitions([f]),mutable={...seed},p=project([{profileId:f.id,quantity:1}]),design={looks:[['Blackout',0,0,'White','White']],circle:false,chase:false};ctx.MagicQRigCompiler.compile(p,ctx.Catalog,defs,mutable,design);mutable.base64=Buffer.from('invalid unterminated seed').toString('base64');assert.throws(()=>ctx.MagicQRigCompiler.compile(p,ctx.Catalog,defs,mutable,design),/Unterminated/);
+});

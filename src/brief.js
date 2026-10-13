@@ -17,6 +17,8 @@ function validateProject(project,catalog){
   const fixture=index.byId.get(row.profileId);
   if(!fixture){errors.push('A fixture/mode is outside the fixture catalog.');continue;}
   if(!fixture.nativePack){errors.push(fixture.model+' ('+fixture.mode+'): '+(fixture.compilerIssue||'native personality unavailable')+'.');continue;}
+  if(fixture.auditStatus==='failed'){errors.push(fixture.model+' ('+fixture.mode+'): '+(fixture.compilerIssue||'fixture verification failed')+'.');continue;}
+  if(project.aimTargets&&fixture.aimingIssue)errors.push(fixture.model+' ('+fixture.mode+'): '+fixture.aimingIssue+'. Target aiming is unavailable for this mode; turn it off to export static programming.');
   if(fixture.logicalChannels>512)errors.push(fixture.model+': this mode exceeds one universe and needs module expansion.');
   if(row.role&&!['stage','decorative'].includes(row.role))errors.push('Choose Stage or Decorative for each fixture row.');
   if(!Number.isInteger(row.quantity)||row.quantity<1||row.quantity>512){errors.push('Fixture quantities must be whole numbers from 1 to 512.');continue;}
