@@ -75,15 +75,19 @@ function design(project,defaults){
  }
  const circle=intent.movementAllowed&&(!tailored||intent.requests.circle);
  const chase=intent.chaseAllowed&&(!tailored||intent.requests.chase);
- const program=looks.map(look=>({name:look[0],type:'static',status:'exportable',stage:{intensity:look[1],color:look[3]},decorative:{intensity:look[2],color:look[4]}}));
+ if(tailored&&event==='corporate'&&intent.palette.length>1){
+  const split={decorativePalette:intent.palette,distribution:'alternating-left-to-right'};
+  for(const look of looks)if(['Walk In','Speeches','Break','Walk Out'].includes(look[0])){look[4]=intent.palette.join(' / ');look[5]=split;}
+ }
+ const program=looks.map(look=>({name:look[0],type:'static',status:'exportable',stage:{intensity:look[1],color:look[3]},decorative:{intensity:look[2],color:look[4],distribution:look[5]?.distribution||'uniform'}}));
  if(chase)program.push({name:'Dimmer Chase',type:'effect',status:'exportable',scope:tailored?'decorative':'all',order:'left-to-right'});
  if(circle)program.push({name:'Circle',type:'effect',status:'exportable'});
  if(intent.requests.ballyhoo)program.push({name:'Ballyhoo',type:'effect',status:intent.movementAllowed?'pending-native-export':'excluded',scope:'decorative moving fixtures'});
  const decisions=['Event: '+event,'Decorative palette: '+intent.palette.join(' / '),'Stage wash: steady white; color looks use decorative fixtures.'];
- if(tailored)decisions.push('Dimmer chase uses decorative fixtures; stage fixtures remain independently lit.','Separate brand-color playbacks are generated; a simultaneous two-color split is not yet implemented.');
+ if(tailored)decisions.push('Dimmer chase uses decorative fixtures; stage fixtures remain independently lit.','Decorative colors alternate by physical left-to-right order; stage wash remains white. Separate single-color looks are also available.');
  decisions.push('Movement circles: '+(circle?'included':'omitted'),'Dimmer chase: '+(chase?'included':'omitted'));
  if(intent.requests.ballyhoo)decisions.push(intent.movementAllowed?'Ballyhoo requested: native ballyhoo export is pending; no substitute circle is generated.':'Ballyhoo omitted because movement is disabled.');
- return {event,brand,palette:intent.palette,looks,circle,chase,program,effectScope:tailored?'decorative':'all',decisions,limitations:['Ballyhoo and simultaneous multi-color fixture splits are not yet exported.','Stage and decorative roles must be assigned correctly in the rig.','Fixture positions and target calibration must be verified in MagicVis.','This offline interpreter supports named looks and constraints; unrecognized instructions require manual review.','Verify generated programming in MagicQ and on site.']};
+ return {event,brand,palette:intent.palette,looks,circle,chase,program,effectScope:tailored?'decorative':'all',decisions,limitations:['Ballyhoo is not yet exported.','Stage and decorative roles must be assigned correctly in the rig.','Fixture positions and target calibration must be verified in MagicVis.','This offline interpreter supports named looks and constraints; unrecognized instructions require manual review.','Verify generated programming in MagicQ and on site.']};
 }
 function cleanFactoryProgramming(bytes){
  const native=globalThis.StormNative,text=native.byteText(bytes),changes=[];
