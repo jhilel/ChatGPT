@@ -9,19 +9,26 @@ function sync(project){
  project.layout=project.rig.flatMap((row,rowIndex)=>{row.layoutKey||=globalThis.crypto?.randomUUID?.()||'row-'+Date.now()+'-'+rowIndex;const result=[];for(let i=0;i<row.quantity&&i<512;i++){const key=row.layoutKey+':'+i,place=project.places[head++]||'Truss';let point=existing.get(key);const isNew=!point;if(!point)point={key,x:project.stage.x+project.room.stageWidth*scale*((i+1)/(row.quantity+1)-.5),depth:project.stage.depth+(place==='Truss'?0:project.room.stageDepth*scale),height:place==='Truss'?project.room.trussHeight*scale:0,rx:0,ry:0,rz:0,custom:false};if(isNew&&place==='Floor'&&globalThis.ShowPlanner)ShowPlanner.setMount(point,'upright');point.mounting||=(point.rx||point.ry||point.rz)?'custom':'hanging';if(isNew&&project.targets.length)point.targetId=existing.get(row.layoutKey+':0')?.targetId||project.targets[0].id;if(!point.targetId){const old=point.target||{x:project.stage.x,depth:project.stage.depth+project.room.stageDepth*scale/2,height:project.stage.height},signature=[old.x,old.depth,old.height].join('|');let target=legacy.get(signature);if(!target){target={id:globalThis.crypto?.randomUUID?.()||'target-'+Date.now()+'-'+project.targets.length,name:project.targets.length?'Target '+(project.targets.length+1):'Stage centre',x:old.x,depth:old.depth,height:old.height,followStage:isNew};project.targets.push(target);legacy.set(signature,target);}point.targetId=target.id;}point.target=project.targets.find(t=>t.id===point.targetId);point.neutralBeam||='down';point.panHeading??=0;result.push(point);}return result;});
 }
 function validate(project){const errors=[];if(project.stage&&(['x','depth','height'].some(k=>!Number.isFinite(project.stage[k]))||project.stage.height<0))errors.push('Enter valid stage coordinates and height.');if(project.stage){const scale=unitScale(project.room.unit);if(Math.abs(project.stage.x)+project.room.stageWidth*scale/2>project.room.width*scale/2+1e-6||project.stage.depth<0||project.stage.depth+project.room.stageDepth*scale>project.room.depth*scale+1e-6)errors.push('The stage must fit within the room.');}if(!Array.isArray(project.targets)||project.targets.length>128)errors.push('Use at most 128 targets.');else{const ids=new Set();for(const t of project.targets){if(typeof t.id!=='string'||!t.id||ids.has(t.id))errors.push('Each target needs a unique ID.');ids.add(t.id);if(typeof t.name!=='string'||!t.name.trim()||t.name.length>40)errors.push('Target names must have 1–40 characters.');if(['x','depth','height'].some(k=>!Number.isFinite(t[k])||Math.abs(t[k])>1000)||t.height<0)errors.push('Enter finite target coordinates and a nonnegative height.');}}for(const p of project.layout||[])for(const key of ['x','depth','height','rx','ry','rz'])if(!Number.isFinite(p[key])||Math.abs(p[key])>(['rx','ry','rz'].includes(key)?360:1000))errors.push('Layout positions must be finite and within 1000 metres; rotations must be within ±360° .');if((project.layout||[]).some(p=>p.height<0))errors.push('Fixture height cannot be negative.');for(const p of project.layout||[]){if(p.focusCalibration&&(p.focusCalibration.modelVersion!==2||![1,-1].includes(p.focusCalibration.sign)||['panOffset','tiltOffset'].some(k=>!Number.isFinite(p.focusCalibration[k])||Math.abs(p.focusCalibration[k])>65535)))errors.push('Invalid imported aiming calibration.');if(!p.target)errors.push('Assign every fixture to an existing target.');if(p.target&&['x','depth','height'].some(k=>!Number.isFinite(p.target[k])||Math.abs(p.target[k])>1000))errors.push('Enter finite focus target coordinates within 1000 metres.');if(p.target?.height<0)errors.push('Target height cannot be negative.');for(const key of ['panTrim','tiltTrim'])if(p[key]!==undefined&&(!Number.isFinite(p[key])||Math.abs(p[key])>180))errors.push('Pan and tilt trims must be within ±180 degrees.');if(p.beamHeightOffset!==undefined&&(!Number.isFinite(p.beamHeightOffset)||Math.abs(p.beamHeightOffset)>10))errors.push('Beam height offset must be within ±10 metres.');if(!Number.isFinite(p.panHeading)||Math.abs(p.panHeading)>360)errors.push('Pan heading must be within ±360 degrees.');if(!['up','down'].includes(p.neutralBeam))errors.push('Choose Up or Down for the neutral beam.');}return [...new Set(errors)];}
+function assignMarkerColors(project){
+ const assigned=new Map(),used=new Set(project.rig.map(r=>r.markerColor).filter(c=>/^#[0-9a-f]{6}$/i.test(c||'')));
+ for(const row of project.rig){
+  if(assigned.has(row.profileId)){row.markerColor=assigned.get(row.profileId);continue;}
+  let color=/^#[0-9a-f]{6}$/i.test(row.markerColor||'')?row.markerColor:undefined;
+  if(!color){
+   if(assigned.size===0)color='#73e2bc';
+   else if(assigned.size===1)color='#f5d547';
+   else{
+    do{color='#'+Array.from({length:3},()=>Math.floor(60+Math.random()*180).toString(16).padStart(2,'0')).join('');}while(used.has(color));
+   }
+  }
+  assigned.set(row.profileId,color);used.add(color);row.markerColor=color;
+ }
+}
 function markerColor(project,index){
  let offset=0;
  for(const row of project.rig){
-  if(index<offset+row.quantity){
-   if(/^#[0-9a-f]{6}$/i.test(row.markerColor||''))return row.markerColor;
-   const fixture=globalThis.StormLibrary?.byId.get(row.profileId);
-   const model=fixture?.model||row.profileId;
-   if(/beam\s*wash/i.test(model))return '#f5d547';
-   if(/profile/i.test(model))return '#73e2bc';
-   const palette=['#77b5fe','#d7a0ed','#f29a72','#a5d77a','#ed8caf'];
-   let hash=0;for(const ch of row.profileId)hash=(hash*31+ch.charCodeAt(0))>>>0;
-   return palette[hash%palette.length];
-  }offset+=row.quantity;
+  if(index<offset+row.quantity)return /^#[0-9a-f]{6}$/i.test(row.markerColor||'')?row.markerColor:'#73e2bc';
+  offset+=row.quantity;
  }return '#73e2bc';
 }
 function markerTextColor(color){
@@ -55,5 +62,5 @@ function draw(project,element,selected,onSelect,onChange,selectedTarget,onTarget
  element.append(make('text',{x:250,y:390,fill:'#b3c2d7','text-anchor':'middle','font-size':12},'X: left/right · Depth: toward audience · Height: above floor'));
 }
 function moveStage(project,next){const old=project.stage||{x:0,depth:0,height:0},delta={x:next.x-old.x,depth:next.depth-old.depth,height:next.height-old.height};Object.assign(old,next);project.stage=old;for(const target of project.targets||[])if(target.followStage){target.x+=delta.x;target.depth+=delta.depth;target.height+=delta.height;}}
-globalThis.RoomLayout={sync,validate,draw,unitScale,moveStage,markerColor,markerTextColor};
+globalThis.RoomLayout={sync,validate,draw,unitScale,moveStage,assignMarkerColors,markerColor,markerTextColor};
 })();
