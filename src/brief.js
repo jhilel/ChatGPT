@@ -55,15 +55,37 @@ function interpretBrief(project){
  const chaseAllowed=Boolean(project.chase)&&!staticOnly&&!excluded('(?:chase|dim(?:mer)?\\s*chase|intensity\\s*chase|flashing)');
  return {palette:palette.length?palette:['Blue'],requests,movementAllowed,chaseAllowed,staticOnly};
 }
+const scenarioRules=[
+ ['wedding',/\b(wedding|reception|first dance|ceremony)\b/i,[['Ceremony',75,15],['Entrance',65,40],['Dinner',25,25],['Toasts',75,20],['First Dance',55,35],['Party',45,65],['Exit',50,25]]],
+ ['dance',/\b(ballet|contemporary dance|dance recital)\b/i,[['Preset',20,20],['Solo',60,25],['Ensemble',65,45],['Sculpted Color',35,60],['Bows',75,40]]],
+ ['theatre',/\b(theatre|theater|drama|musical|opera|play)\b/i,[['Preset',20,20],['Stage Visibility',65,25],['Special',70,15],['Scene Contrast',40,45],['Curtain Call',80,40]]],
+ ['worship',/\b(worship|church|sermon|prayer)\b/i,[['Welcome',65,25],['Worship Music',55,55],['Reading',75,20],['Sermon',75,15],['Prayer',45,20],['Close',55,25]]],
+ ['broadcast',/\b(broadcast|studio|television|filmed|livestream|live stream)\b/i,[['Camera Key',70,0],['Interview',70,20],['Presentation',70,10],['Background',0,35]]],
+ ['fashion',/\b(fashion|runway|catwalk)\b/i,[['Preset',35,25],['Runway',80,20],['Photo Position',80,10],['Finale',80,45]]],
+ ['museum',/\b(museum|gallery|artwork)\b/i,[['Open',50,15],['Display',60,10],['Event',50,25],['Close',15,10]]],
+ ['architectural',/\b(architectural|facade|façade|building lighting)\b/i,[['Open',40,30],['Ambient',20,35],['Event',40,55],['Close',10,10]]],
+ ['sports',/\b(sports?|stadium|arena ceremony)\b/i,[['Pre Show',55,35],['Introduction',75,55],['Ceremony',75,25],['Celebration',55,65],['Post Show',60,25]]],
+ ['dj',/\b(dj|club|rave)\b/i,[['Ambient',20,30],['Build',35,50],['Drop',45,80],['Breakdown',25,25],['Peak',50,85],['Close',35,20]]],
+ ['concert',/\b(concert|band|acoustic|touring)\b/i,null],
+ ['gala',/\b(gala|awards?|banquet|fundraiser)\b/i,null],
+ ['expo',/\b(expo|exhibition|trade\s*show|booth)\b/i,null],
+ ['corporate',/\b(corporate|summit|conference|panel|presentation)\b/i,null]
+];
+function scenarioFor(project){
+ if(project.event&&project.event!=='auto')return {id:project.event,states:null,outdoor:/\b(outdoor|festival)\b/i.test(project.brief)};
+ const rule=scenarioRules.find(([,pattern])=>pattern.test(project.brief||''));
+ return {id:rule?.[0]||'corporate',states:rule?.[2]||null,outdoor:/\b(outdoor|festival)\b/i.test(project.brief||'')};
+}
+
 function design(project,defaults){
- const event=inferEvent(project.brief,project.event),intent=interpretBrief(project),brand=intent.palette[0];
+ const event=inferEvent(project.brief,project.event),intent=interpretBrief(project),brand=intent.palette[0],scenario=scenarioFor(project);
  const looks=JSON.parse(JSON.stringify(defaults[event]));
  for(const look of looks){
   if(/^Brand /i.test(look[0])){look[0]='Brand '+brand;look[4]=brand;}
   else if(/Walk In|Arrival|Ambient|Break/.test(look[0]))look[4]=brand;
  }
- const tailored=intent.requests.stageWash||intent.requests.ballyhoo||intent.requests.chase||intent.requests.circle||intent.palette.length>1;
- if(tailored&&event==='corporate'){
+ const tailored=Boolean(scenario.states)||intent.requests.stageWash||intent.requests.ballyhoo||intent.requests.chase||intent.requests.circle||intent.palette.length>1;
+ if(tailored&&event==='corporate'&&!scenario.states){
   looks.splice(0,looks.length,
    ['Walk In',30,30,'White',brand],
    ['Stage Wash',70,0,'White','White'],
@@ -73,21 +95,26 @@ function design(project,defaults){
    ['Walk Out',40,30,'White',brand],
    ['Blackout',0,0,'White','White']);
  }
+ if(scenario.states){
+  looks.splice(0,looks.length,...scenario.states.map(([name,stage,decorative])=>[name,stage,decorative,'White',brand]),['Blackout',0,0,'White','White']);
+ }
  const circle=intent.movementAllowed&&(!tailored||intent.requests.circle);
  const chase=intent.chaseAllowed&&(!tailored||intent.requests.chase);
- if(tailored&&event==='corporate'&&intent.palette.length>1){
+ if(tailored&&intent.palette.length>1){
   const split={decorativePalette:intent.palette,distribution:'alternating-left-to-right'};
-  for(const look of looks)if(['Walk In','Speeches','Break','Walk Out'].includes(look[0])){look[4]=intent.palette.join(' / ');look[5]=split;}
+  for(const look of looks)if(look[2]>0&&!/^Brand /.test(look[0])&&look[0]!=='Stage Wash'){look[4]=intent.palette.join(' / ');look[5]=split;}
  }
  const program=looks.map(look=>({name:look[0],type:'static',status:'exportable',stage:{intensity:look[1],color:look[3]},decorative:{intensity:look[2],color:look[4],distribution:look[5]?.distribution||'uniform'}}));
  if(chase)program.push({name:'Dimmer Chase',type:'effect',status:'exportable',scope:tailored?'decorative':'all',order:'left-to-right'});
  if(circle)program.push({name:'Circle',type:'effect',status:'exportable'});
  if(intent.requests.ballyhoo)program.push({name:'Ballyhoo',type:'effect',status:intent.movementAllowed?'pending-native-export':'excluded',scope:'decorative moving fixtures'});
- const decisions=['Event: '+event,'Decorative palette: '+intent.palette.join(' / '),'Stage wash: steady white; color looks use decorative fixtures.'];
+ const decisions=['Scenario: '+scenario.id,'Event template: '+event,'Decorative palette: '+intent.palette.join(' / '),'Stage wash: steady white; color looks use decorative fixtures.'];
  if(tailored)decisions.push('Dimmer chase uses decorative fixtures; stage fixtures remain independently lit.','Decorative colors alternate by physical left-to-right order; stage wash remains white. Separate single-color looks are also available.');
  decisions.push('Movement circles: '+(circle?'included':'omitted'),'Dimmer chase: '+(chase?'included':'omitted'));
  if(intent.requests.ballyhoo)decisions.push(intent.movementAllowed?'Ballyhoo requested: native ballyhoo export is pending; no substitute circle is generated.':'Ballyhoo omitted because movement is disabled.');
- return {event,brand,palette:intent.palette,looks,circle,chase,program,effectScope:tailored?'decorative':'all',decisions,limitations:['Ballyhoo is not yet exported.','Stage and decorative roles must be assigned correctly in the rig.','Fixture positions and target calibration must be verified in MagicVis.','This offline interpreter supports named looks and constraints; unrecognized instructions require manual review.','Verify generated programming in MagicQ and on site.']};
+ if(scenario.states)decisions.push('Scenario rules are applied to native cue levels, colors and playback names. Exact blocking, photometrics and per-area assignment remain manual.');
+ if(scenario.outdoor)decisions.push('Outdoor context: daylight and atmospheric visibility require on-site checks.');
+ return {event,scenario:scenario.id,outdoor:scenario.outdoor,brand,palette:intent.palette,looks,circle,chase,program,effectScope:tailored?'decorative':'all',decisions,limitations:['Ballyhoo is not yet exported.','Stage and decorative roles must be assigned correctly in the rig.','Fixture positions and target calibration must be verified in MagicVis.','This offline interpreter supports named looks and constraints; unrecognized instructions require manual review.','Verify generated programming in MagicQ and on site.']};
 }
 function cleanFactoryProgramming(bytes){
  const native=globalThis.StormNative,text=native.byteText(bytes),changes=[];
@@ -105,5 +132,5 @@ async function compile(project,catalog,seed){
  const compiled=globalThis.MagicQRigCompiler.compile(project,catalog,definitions,seed,result);
  return {...compiled,design:result};
 }
-globalThis.StormBrief={interpretBrief,inferEvent,validateProject,design,compile,cleanFactoryProgramming};
+globalThis.StormBrief={scenarioFor,interpretBrief,inferEvent,validateProject,design,compile,cleanFactoryProgramming};
 })();
