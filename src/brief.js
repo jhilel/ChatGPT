@@ -162,7 +162,7 @@ function buildLLMRequest(project,catalog,definitions,model){
 async function requestLLMDesign(project,catalog,definitions,options){
  // A same-origin backend must forward this request to the chosen LLM.
  // API credentials belong in that backend, never in this browser module.
- const snapshot=structuredClone(project),body=buildLLMRequest(snapshot,catalog,definitions,options.model);
+ const snapshot=JSON.parse(JSON.stringify(project)),body=buildLLMRequest(snapshot,catalog,definitions,options.model);
  const response=await (options.fetchImpl||globalThis.fetch)(options.endpoint||'/api/lighting-plan',{
   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:options.signal
  });
@@ -183,7 +183,7 @@ async function requestLLMDesign(project,catalog,definitions,options){
 }
 
 async function compile(project,catalog,seed,options={}){
- project=structuredClone(project);
+ project=JSON.parse(JSON.stringify(project));
  const errors=validateProject(project,catalog);if(errors.length)throw Error(errors.join('\n'));
  let result=design(project,globalThis.StormNative.defaults);
  const fixtures=project.rig.map(row=>catalogIndex(catalog).byId.get(row.profileId));
