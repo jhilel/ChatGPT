@@ -2,7 +2,7 @@ from pathlib import Path
 import html
 import json
 root = Path(__file__).resolve().parent.parent
-shell = (root / 'src/app-shell.html').read_text()
+shell = (root / 'src/app-shell.html').read_text(encoding='utf-8')
 library = json.loads((root / 'public/fixture-library.json').read_text())
 manufacturers = sorted({f['manufacturer'] for f in library['fixtures']})
 options = ''.join('<option value="'+html.escape(name, quote=True)+'">'+html.escape(name or '(unspecified)')+'</option>' for name in manufacturers)
