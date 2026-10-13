@@ -127,9 +127,10 @@ function cleanFactoryProgramming(bytes){
 function activeFixtureContext(project,catalog,definitions){
  const allocation=globalThis.MagicQRigCompiler.allocate(project,catalog,definitions);
  return {
-  fixtureTypes:project.rig.map(row=>{
+  fixtureTypes:project.rig.map((row,rowIndex)=>{
    const fixture=catalogIndex(catalog).byId.get(row.profileId);
-   const heads=allocation.heads.filter(h=>h.personality.fixture.id===row.profileId);
+   const offset=project.rig.slice(0,rowIndex).reduce((n,r)=>n+r.quantity,0);
+   const heads=allocation.heads.slice(offset,offset+row.quantity);
    return {profileId:row.profileId,manufacturer:fixture.manufacturer,type:fixture.model,mode:fixture.mode,quantity:row.quantity,lightingPurpose:row.role,
     patch:heads.map(h=>({headId:h.id,universe:h.universe,address:h.address,channels:h.count,endAddress:h.address+h.count-1}))};
   }),
