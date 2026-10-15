@@ -10,15 +10,15 @@ test('LLM request contains only current UI rig and compiler-allocated DMX patch'
  assert.ok(context.heads.every(h=>h.address+h.channels-1<=512));
  const request=ctx.StormBrief.buildLLMRequest(p,ctx.Catalog,defs,'test-model');
  assert.match(request.messages[0].content,/ONLY use the active fixtures/);
- assert.match(request.messages[0].content,/ACTIVE_FIXTURE_DATA/);
+ assert.equal(JSON.parse(request.messages[1].content).activeRigAndCompilerContext.heads.length,20);
  assert.doesNotMatch(request.messages[0].content,/storm2-beamwash-basic1/);
- assert.equal(request.messages[1].content,p.brief);
+ assert.equal(JSON.parse(request.messages[1].content).showBrief,p.brief);
 });
 test('request rebuilds inventory after removal and rejects AI attempts to replace the patch',async()=>{
  const ctx=setup(),p=project();const fixtures=p.rig.map(r=>ctx.Catalog.fixtures.find(f=>f.id===r.profileId)),defs=await definitions(fixtures);
  const first=ctx.StormBrief.buildLLMRequest(p,ctx.Catalog,defs,'test');
  p.rig.pop();p.places=Array(4).fill('Truss');
  const second=ctx.StormBrief.buildLLMRequest(p,ctx.Catalog,defs,'test');
- assert.notEqual(first.messages[0].content,second.messages[0].content);
- await assert.rejects(()=>ctx.StormBrief.requestLLMDesign(p,ctx.Catalog,defs,{model:'test',fetchImpl:async()=>({ok:true,json:async()=>({plan:{rig:[]}})})}),/must not replace the rig or patch/);
+ assert.notEqual(first.messages[1].content,second.messages[1].content);
+ await assert.rejects(()=>ctx.StormBrief.requestLLMDesign(p,ctx.Catalog,defs,{model:'test',fetchImpl:async()=>({ok:true,json:async()=>({message:{content:JSON.stringify({rig:[]})}})})}),/must not replace the rig or patch/);
 });

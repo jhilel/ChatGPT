@@ -21,16 +21,20 @@ jobs:
         env:
           PYTHONUTF8: '1'
       - run: npm test
+      - run: npm ci
+      - run: xvfb-run -a npm run test:desktop
       - name: Package browser app
         run: |
           mkdir -p preview/Rig-to-Show
           cp -r public preview/Rig-to-Show/
           cp README.md preview/Rig-to-Show/
-          cd preview
-          zip -qr Rig-to-Show-preview.zip Rig-to-Show
+          cp server.mjs Start-Lighting-App.command preview/Rig-to-Show/
+          mkdir -p preview/Rig-to-Show/src preview/Rig-to-Show/docs
+          cp src/local-ai-server.mjs preview/Rig-to-Show/src/
+          cp docs/local-ai.md preview/Rig-to-Show/docs/
       - uses: actions/upload-artifact@v4
         with:
           name: Rig-to-Show-preview
-          path: preview/Rig-to-Show-preview.zip
+          path: preview/Rig-to-Show/
           retention-days: 14
           if-no-files-found: error
