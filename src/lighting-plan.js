@@ -117,6 +117,13 @@ function inputContext(project,catalog,definitions){
 function validate(plan,project,catalog,definitions){
  check(plan,schema);
  const context=inputContext(project,catalog,definitions);
+ const brief=project.brief||'';
+ const requested=term=>new RegExp('\\b'+term+'\\b','i').test(brief)&&!new RegExp('\\b(?:no|without|avoid|disable|do not use|don.t use)\\s+(?:any\\s+)?'+term+'\\b','i').test(brief);
+ const unsupported=[
+  ['ballyhoo','(?:ballyhoo|bally)'],['strobe','strobes?'],['gobo','gobos?'],['zoom','zoom'],['timecode','timecode']
+ ].filter(([,term])=>requested(term)).map(([name])=>name);
+ if(/\b(?:fade|crossfade|delay)\b.{0,20}\b\d+(?:\.\d+)?\s*(?:s|sec|seconds?)\b|\b\d+(?:\.\d+)?\s*(?:second|sec|s)s?\s+(?:fade|crossfade|delay)\b/i.test(brief))unsupported.push('timing');
+ for(const feature of unsupported)if(!plan.issues.some(issue=>issue.toLowerCase().includes(feature)))throw Error('Unsupported brief request: '+feature+'. The AI must flag it in issues; it cannot be silently omitted or substituted.');
  const rig=MagicQRigCompiler.allocate(project,catalog,definitions),byId=new Map(rig.heads.map(h=>[h.id,h]));
  const ids=new Set(),names=new Set();
  for(const entry of [...plan.groups,...plan.cues,...plan.effects]){

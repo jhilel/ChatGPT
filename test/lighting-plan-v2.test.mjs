@@ -131,3 +131,14 @@ test('circle export contains only position attributes on selected heads, and bou
  assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs),/exceeds remaining travel/);
  p.stage={x:NaN,depth:0,height:0};assert.throws(()=>ctx.LightingPlan.validate(samplePlan(),p,ctx.Catalog,defs),/Stage.*geometry/);
 });
+
+test('requested unsupported features cannot disappear from a supposedly complete plan',async()=>{
+ const {ctx,p,defs}=await input();
+ for(const brief of ['Corporate summit with ballyhoo','Please strobe the decor','Use gobos','Set zoom wide','Use timecode','Fade over 3 seconds']){
+  p.brief=brief;assert.throws(()=>ctx.LightingPlan.validate(samplePlan(),p,ctx.Catalog,defs),/Unsupported brief request/);
+ }
+ p.brief='Corporate summit with ballyhoo';const q=samplePlan();q.issues=['Ballyhoo export is not supported; choose a supported effect or revise the brief.'];
+ assert.equal(ctx.LightingPlan.validate(q,p,ctx.Catalog,defs).issues.length,1);
+ await assert.rejects(()=>ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:q}),/Ballyhoo export/);
+ p.brief='Corporate summit, no strobe';assert.equal(ctx.LightingPlan.validate(samplePlan(),p,ctx.Catalog,defs).issues.length,0);
+});
