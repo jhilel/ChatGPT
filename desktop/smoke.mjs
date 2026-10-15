@@ -4,6 +4,7 @@ const root=path.resolve(import.meta.dirname,'..'),directory=fs.mkdtempSync(path.
 const executable=process.env.RIG_PACKAGED_EXECUTABLE,args=process.platform==='linux'?['--no-sandbox','--disable-gpu','--disable-dev-shm-usage']:[];
 if(!executable)args.push(root);
 const app=await electron.launch({...(executable?{executablePath:executable}:{}),args,env:{...process.env,RIG_TO_SHOW_USER_DATA:path.join(directory,'profile'),RIG_TO_SHOW_HEADLESS:'1'},timeout:30000});
+const appProcess=app.process();
 try{
  const window=await app.firstWindow(),errors=[];window.on('pageerror',e=>errors.push(e.message));
  await window.waitForFunction(()=>document.getElementById('startup').hidden);
@@ -50,4 +51,4 @@ try{
  assert.equal(await window.locator('#rig tr').count(),0);assert.equal(await window.locator('#generationMode').inputValue(),'ai');
  assert.deepEqual(errors,[]);
  console.log('Desktop smoke passed: empty launch, rig load/colors, explicit legacy export, mocked local model connection, reviewed AI export, stale-plan invalidation and no silent fallback.');
-}finally{let timer;await Promise.race([app.close(),new Promise(r=>{timer=setTimeout(r,5000);})]);clearTimeout(timer);if(app.process().exitCode===null)app.process().kill('SIGTERM');fs.rmSync(directory,{recursive:true,force:true});}
+}finally{let timer;await Promise.race([app.close(),new Promise(r=>{timer=setTimeout(r,5000);})]);clearTimeout(timer);if(appProcess.exitCode===null)appProcess.kill('SIGTERM');fs.rmSync(directory,{recursive:true,force:true});}

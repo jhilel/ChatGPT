@@ -86,6 +86,10 @@ function inputContext(project,catalog,definitions){
   for(const k of ['x','depth','height','rx','ry','rz'])if(!Number.isFinite(h.geometry[k]))throw Error('Head '+h.id+': invalid geometry '+k);
   if(h.geometry.height<0)throw Error('Head '+h.id+': negative height');
  }
+ if(project.stage){
+  for(const k of ['x','depth','height'])if(!Number.isFinite(project.stage[k]))throw Error('Stage: invalid geometry '+k);
+  if(project.stage.height<0)throw Error('Stage: negative height.');
+ }
  const targets=project.targets||[];
  if(!Array.isArray(targets)||targets.length>128||new Set(targets.map(t=>t.id)).size!==targets.length)throw Error('Invalid/duplicate room targets.');
  for(const t of targets){

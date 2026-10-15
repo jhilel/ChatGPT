@@ -116,3 +116,18 @@ test('prompt and fixture labels stay data and cannot supply replacement patch fi
  assert.match(JSON.parse(body.messages[1].content).showBrief,/100 new lights/);
  const q=samplePlan();q.patch=[{universe:9,address:1}];assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs),/unknown field patch/);
 });
+
+test('circle export contains only position attributes on selected heads, and bounds are not silently clipped',async()=>{
+ const {ctx,p,defs}=await input();p.aimTargets=true;p.targets=[{id:'centre',name:'Centre',x:0,depth:2,height:1}];
+ p.layout=Array.from({length:12},(_,i)=>({x:i<6?-3:3,depth:8,height:6,rx:0,ry:0,rz:0,neutralBeam:'down',panHeading:0,targetId:'centre'}));
+ const q=samplePlan();q.effects=[{...effect(),id:'circle',name:'Decor Circle',kind:'circle',sizePercent:1}];
+ const result=await ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:q}),rig=ctx.MagicQRigCompiler.allocate(p,ctx.Catalog,defs);
+ const cue=ctx.MagicQRigCompiler.records(Buffer.from(result.show).toString('latin1')).find(r=>r.type==='S'&&r.text.includes('"Decor Circle"'));
+ const lines=cue.text.split('\n'),channels=lines[2].split(',').filter(Boolean).filter((_,i)=>i%2===0).map(v=>parseInt(v,16));
+ assert.ok(channels.length>0);
+ const positionChannels=[rig.heads[4],rig.heads[6]].flatMap(h=>h.personality.definition.channels.flatMap(([,f,a],i)=>[4,5].includes(a)?[h.start+i]:[]));
+ assert.ok(channels.every(c=>positionChannels.includes(c)));
+ q.effects[0].sizePercent=50;
+ assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs),/exceeds remaining travel/);
+ p.stage={x:NaN,depth:0,height:0};assert.throws(()=>ctx.LightingPlan.validate(samplePlan(),p,ctx.Catalog,defs),/Stage.*geometry/);
+});
