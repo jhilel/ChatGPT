@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import {createAppServer} from '../src/local-ai-server.mjs';
 const json=x=>new Response(JSON.stringify(x),{headers:{'Content-Type':'application/json'}});
 async function start(t,fetchImpl){
@@ -26,7 +27,7 @@ test('bridge only uses fixed loopback model endpoint and forces local structured
 test('cross-origin/host requests, arbitrary endpoints and cloud models are rejected',async t=>{
  const url=await start(t,async()=>json({models:[]}));
  assert.equal((await post(url,request,{Origin:'https://evil.example'})).status,403);
- assert.equal((await fetch(url+'/api/models',{headers:{Host:'evil.example'}})).status,403);
+ const hostStatus=await new Promise((resolve,reject)=>{const req=http.get(url+'/api/models',{headers:{Host:'evil.example'}},res=>{res.resume();resolve(res.statusCode);});req.on('error',reject);});assert.equal(hostStatus,403);
  assert.equal((await post(url,{...request,endpoint:'https://evil.example'})).status,400);
  assert.equal((await post(url,{...request,model:'model:cloud'})).status,400);
  assert.equal((await post(url,{...request,model:'https://evil.example'})).status,400);
