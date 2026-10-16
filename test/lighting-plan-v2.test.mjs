@@ -28,7 +28,7 @@ test('strict validation rejects unknown fields, invented fixtures, patch substit
   q=>{q.rig=[];},q=>{q.cues[0].states[0].zoom=10;},q=>{q.groups[0].headIds=[999];},
   q=>{q.cues[0].states[0].selection.groupIds=['invented'];},q=>{q.cues[0].states[0].intensity=101;},
   q=>{q.cues[0].states[0].intensity=NaN;},q=>{delete q.cues[0].timing;},q=>{q.targetVersion='1.9.9';},
-  q=>{q.cues[0].states[0].selection={headIds:[1],groupIds:['speakers']};}
+
  ]){const q=samplePlan();mutate(q);assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs));}
  await assert.rejects(()=>ctx.LightingPlan.generate(p,ctx.Catalog,defs,{transport:async()=>({message:{content:'not JSON'}})}),/invalid JSON/);
  await assert.rejects(()=>ctx.LightingPlan.generate(p,ctx.Catalog,defs,{transport:async()=>({message:{content:'{}'},done_reason:'length'})}),/output limit/);
@@ -141,4 +141,36 @@ test('requested unsupported features cannot disappear from a supposedly complete
  assert.equal(ctx.LightingPlan.validate(q,p,ctx.Catalog,defs).issues.length,1);
  await assert.rejects(()=>ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:q}),/Ballyhoo export/);
  p.brief='Corporate summit, no strobe';assert.equal(ctx.LightingPlan.validate(samplePlan(),p,ctx.Catalog,defs).issues.length,0);
+});
+
+test('duplicate heads and overlapping groups resolve as one stable selection',async()=>{
+ const {ctx,p,defs}=await input(),q=samplePlan();
+ q.groups.push({id:'front',name:'Front',headIds:[1,2,2]});
+ q.cues[0].states[0].selection={headIds:[1,1],groupIds:['speakers','front','speakers']};
+ assert.deepEqual(Array.from(ctx.LightingPlan.resolve(q.cues[0].states[0].selection,q.groups)),[1,2,3,4]);
+ const baseline=await ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:samplePlan()});
+ const result=await ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:q});
+ const cue=show=>ctx.MagicQRigCompiler.records(Buffer.from(show).toString('latin1')).find(r=>r.type==='S'&&r.text.includes('"Speeches"')).text;
+ assert.equal(cue(result.show),cue(baseline.show));
+ assert.deepEqual(clone(result.patch),clone(baseline.patch));
+});
+test('separate compatible attribute states and identical repeated values are accepted',async()=>{
+ const {ctx,p,defs}=await input(),q=samplePlan(),first=q.cues[0].states[0];
+ first.color=null;
+ q.cues[0].states.push({selection:{headIds:[1,2,3,4],groupIds:[]},intensity:null,color:'White',targetId:null});
+ q.cues[0].states.push(clone(first));
+ const result=await ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:q});
+ const baseline=await ctx.StormBrief.compile(p,ctx.Catalog,seed,{plan:samplePlan()});
+ const cue=show=>ctx.MagicQRigCompiler.records(Buffer.from(show).toString('latin1')).find(r=>r.type==='S'&&r.text.includes('"Speeches"')).text.split('\n')[2];
+ const pairs=text=>{const a=text.split(',').filter(Boolean).map(s=>parseInt(s,16)),out=[];for(let i=0;i<a.length;i+=2)out.push([a[i],a[i+1]]);return out.sort((a,b)=>a[0]-b[0]);};
+ assert.deepEqual(pairs(cue(result.show)),pairs(cue(baseline.show)));
+});
+test('conflicting attribute values remain blocked with cue, head and attribute details',async()=>{
+ const {ctx,p,defs}=await input();
+ for(const [key,value] of [['intensity',30],['color','Blue']]){
+  const q=samplePlan();q.cues[0].states.push({selection:{headIds:[1],groupIds:[]},intensity:null,color:null,targetId:null,[key]:value});
+  assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs),new RegExp('Speeches: conflicting '+key+' instructions for head 1'));
+ }
+ const q=samplePlan();q.cues[0].states[0].selection={headIds:[999,999],groupIds:[]};
+ assert.throws(()=>ctx.LightingPlan.validate(q,p,ctx.Catalog,defs),/inactive head 999/);
 });

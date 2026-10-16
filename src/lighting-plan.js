@@ -55,8 +55,8 @@ function resolve(selection,groups){
   ids.push(...group.headIds);
  }
  if(!ids.length)throw Error('Selection must contain existing heads or groups.');
- if(new Set(ids).size!==ids.length)throw Error('Selection contains repeated/overlapping heads.');
- return ids;
+ // A selection is a union: direct heads and overlapping groups may name the same head.
+ return [...new Set(ids)];
 }
 function colorSupported(def,color){
  if(!color)return false;
@@ -142,12 +142,17 @@ function validate(plan,project,catalog,definitions){
  for(const cue of plan.cues){
   manual(cue);
   if(cue.timing.mode!=='compilerDefault'||cue.timing.fadeSeconds!==null||cue.timing.delaySeconds!==null)throw Error(cue.name+': explicit fade/delay timing is not supported by the native adapter yet.');
-  const touched=new Set();
+  const touched=new Map();
   for(const state of cue.states){
    if(state.intensity===null&&state.color===null&&state.targetId===null)throw Error(cue.name+': empty state');
    const heads=selected(state.selection);
    for(const h of heads){
-    if(touched.has(h.id))throw Error(cue.name+': overlapping state for head '+h.id);touched.add(h.id);
+    const attributes=touched.get(h.id)||new Map();
+    for(const key of ['intensity','color','targetId'])if(state[key]!==null){
+     if(attributes.has(key)&&attributes.get(key)!==state[key])throw Error(cue.name+': conflicting '+key+' instructions for head '+h.id+'. Use one value for this attribute in this cue.');
+     attributes.set(key,state[key]);
+    }
+    touched.set(h.id,attributes);
     const cap=capabilities(h);
     if(state.intensity!==null&&!cap.intensity)throw Error('Head '+h.id+' has no supported intensity mapping.');
     if(state.color!==null&&(!cap.colors.includes(state.color)||!context.restrictions.colors.includes(state.color)))throw Error('Head '+h.id+': unsupported or excluded color '+state.color);
@@ -202,7 +207,7 @@ const system=[
  'Cues are separate manually selected playbacks, not a timed sequence. timing must be compilerDefault with fadeSeconds:null and delaySeconds:null.',
  'Effects are separate manually operated playbacks with stop:{type:"manualRelease"}. A speech cue DOES NOT automatically stop effects. Put any required automatic stop in issues.',
  'Only circles and dimmerChase are supported. Ballyhoo, strobe, zoom, gobos, explicit timings, automatic release, follow and timecode are unsupported: add an issue when requested.',
- 'Use null for an attribute not needed in a state. States may control different head subsets; do not overlap heads within a cue. An intensity/color state does not alter position.',
+ 'Use null for an attribute not needed in a state. Selections combine head IDs and groups as a union. Prefer one state per head; separate attribute states are allowed but must never assign conflicting values to the same head. An intensity/color state does not alter position.',
  'Use names without quotation marks, semicolons or newlines. Keep plans compact: usually 4-8 cues and at most 2 effects.',
  'This is a pretrained model proposal, not a guarantee of professional lighting quality. Do not claim tested physical exposure or console confirmation.'
 ].join('\n');
