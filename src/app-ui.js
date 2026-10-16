@@ -1,13 +1,20 @@
 (()=>{
 const $=id=>document.getElementById(id),svgNS='http://www.w3.org/2000/svg';
-const project={version:1,aimingModelVersion:2,aimTargets:true,operatingPage:true,movementSpeed:1,name:'Storm event',rig:Catalog.verifiedIds.map(id=>StormLibrary.byId.get(id)).filter(f=>f.exportSupported).map(f=>({profileId:f.id,quantity:f.verifiedQuantity})),brief:'',event:'auto',brand:'auto',movement:true,chase:true,room:{unit:'ft',width:60,depth:40,stageWidth:24,stageDepth:10,trussHeight:16},places:Array.from({length:12},(_,i)=>(i<2||(i>=4&&i<8))?'Truss':'Floor')};
+const project={version:1,aimingModelVersion:2,aimTargets:true,operatingPage:true,movementSpeed:1,name:'Storm event',rig:[],brief:'',event:'auto',brand:'auto',movement:true,chase:true,room:{unit:'ft',width:60,depth:40,stageWidth:24,stageDepth:10,trussHeight:16},places:[]};
+let aiReview=null,aiAbort=null;
 let recoveryRig,notes,selectedHead=0,selectedTarget,selectedKind='fixture';
 for(const color of ['auto','White','Red','Amber','Yellow','Green','Cyan','Blue','Pink','UV','Magenta'])$('brand').add(new Option(color==='auto'?'Infer from brief':color,color));
 function read(){project.name=$('name').value;project.brief=$('brief').value;project.event=$('event').value;project.brand=$('brand').value;project.movement=$('movement').checked;project.chase=$('chase').checked;for(const key of ['width','depth','stageWidth','stageDepth','trussHeight'])project.room[key]=Number($(key).value);project.room.unit=$('unit').value;project.aimTargets=$('aimTargets').checked;project.circleSize=Number($('circleSize').value);project.movementSpeed=Number($('movementSpeed').value);project.operatingPage=$('operatingPage').checked;}
 function svg(tag,attrs,text){const el=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;return el;}
 function roleForHead(head){let n=0;for(const row of project.rig){n+=row.quantity;if(head<=n)return row.role;}return 'decorative';}
 function layout(){
- RoomLayout.sync(project);selectedHead=Math.min(selectedHead,Math.max(0,project.layout.length-1));
+ RoomLayout.sync(project);
+ $('layoutLegend').replaceChildren(...[...new Map(project.rig.map((row,i)=>[row.profileId,{row,index:i}])).values()].map(({row,index})=>{
+  const label=document.createElement('span'),dot=document.createElement('span'),fixture=StormLibrary.byId.get(row.profileId);
+  dot.textContent='● ';dot.style.color=RoomLayout.markerColor(project,project.rig.slice(0,index).reduce((n,r)=>n+r.quantity,0));
+  label.append(dot,document.createTextNode(fixture?.model||row.profileId));return label;
+ }));
+ selectedHead=Math.min(selectedHead,Math.max(0,project.layout.length-1));
  selectedTarget=project.targets.some(t=>t.id===selectedTarget)?selectedTarget:project.layout[selectedHead]?.targetId||project.targets[0]?.id;
  RoomLayout.draw(project,$('layout'),selectedHead,i=>{selectedHead=i;selectedTarget=project.layout[i].targetId;selectedKind='fixture';},refresh,selectedTarget,id=>{selectedTarget=id;selectedKind='target';},selectedKind,()=>{selectedKind='stage';});
  $('layoutHead').replaceChildren(...project.layout.map((_,i)=>new Option('Head '+(i+1),i)));$('layoutHead').value=selectedHead;
@@ -59,7 +66,8 @@ $('aimTargets').onchange=refresh;$('circleSize').onchange=refresh;$('movementSpe
 $('layoutPlace').onchange=()=>{project.places[selectedHead]=$('layoutPlace').value;refresh();};
 $('layoutCsv').onclick=()=>{const rows=[['Head','X metres','Depth metres','Height metres','Rotation X degrees','Rotation Y degrees','Rotation Z degrees','Target','Target X metres','Target depth metres','Target height metres'],...project.layout.map((p,i)=>[i+1,p.x,p.depth,p.height,p.rx,p.ry,p.rz,p.target?.name||'',p.target?.x??'',p.target?.depth??'',p.target?.height??''])],csv=rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');download(csv,'text/csv;charset=utf-8','room-layout.csv');};
 function renderRig(){
- $('rig').replaceChildren();project.rig.forEach((row,index)=>{const tr=document.createElement('tr'),cell=document.createElement('td'),f=StormLibrary.byId.get(row.profileId);const label=document.createElement('div');label.textContent=f?f.manufacturer+' · '+f.model+' / '+f.mode:'Unknown profile';cell.append(label);const qtyCell=document.createElement('td'),qty=document.createElement('input');qty.type='number';qty.min=1;qty.max=512;qty.value=row.quantity;qty.setAttribute('aria-label','Fixture '+(index+1)+' quantity');qty.oninput=()=>{row.quantity=Number(qty.value);refresh();};qtyCell.append(qty);const removeCell=document.createElement('td'),remove=document.createElement('button');remove.textContent='Remove';remove.onclick=()=>{project.rig.splice(index,1);renderRig();refresh();};removeCell.append(remove);const roleCell=document.createElement('td'),role=document.createElement('select');role.add(new Option('Stage','stage'));role.add(new Option('Decorative','decorative'));row.role=row.role||(/profile|spot|dimmer|fresnel/i.test(f?.model||'')?'stage':'decorative');role.value=row.role;role.setAttribute('aria-label','Fixture '+(index+1)+' role');role.onchange=()=>{row.role=role.value;refresh();};roleCell.append(role);tr.append(cell,qtyCell,roleCell,removeCell);$('rig').append(tr);});
+ RoomLayout.assignMarkerColors(project);
+ $('rig').replaceChildren();project.rig.forEach((row,index)=>{const tr=document.createElement('tr'),cell=document.createElement('td'),f=StormLibrary.byId.get(row.profileId);const label=document.createElement('div');label.textContent=f?f.manufacturer+' · '+f.model+' / '+f.mode:'Unknown profile';cell.append(label);const qtyCell=document.createElement('td'),qty=document.createElement('input');qty.type='number';qty.min=1;qty.max=512;qty.value=row.quantity;qty.setAttribute('aria-label','Fixture '+(index+1)+' quantity');qty.oninput=()=>{row.quantity=Number(qty.value);refresh();};qtyCell.append(qty);const removeCell=document.createElement('td'),remove=document.createElement('button');remove.textContent='Remove';remove.onclick=()=>{project.rig.splice(index,1);renderRig();refresh();};removeCell.append(remove);const roleCell=document.createElement('td'),role=document.createElement('select');role.add(new Option('People / stage wash','stage'));role.add(new Option('Décor / effects','decorative'));row.role=row.role||(/profile|spot|dimmer|fresnel/i.test(f?.model||'')?'stage':'decorative');role.value=row.role;role.setAttribute('aria-label','Fixture '+(index+1)+' lighting purpose');role.onchange=()=>{row.role=role.value;refresh();};roleCell.append(role);const colorCell=document.createElement('td'),color=document.createElement('input');color.type='color';color.value=RoomLayout.markerColor(project,project.rig.slice(0,index).reduce((n,r)=>n+r.quantity,0));color.setAttribute('aria-label','Layout color for '+(f?.model||'fixture'));color.title='Layout marker color';const swatch=document.createElement('span');swatch.className='marker-swatch';swatch.style.backgroundColor=color.value;swatch.setAttribute('aria-hidden','true');color.oninput=()=>{for(const same of project.rig)if(same.profileId===row.profileId)same.markerColor=color.value;swatch.style.backgroundColor=color.value;refresh();};color.onchange=()=>{for(const same of project.rig)if(same.profileId===row.profileId)same.markerColor=color.value;renderRig();refresh();};colorCell.append(swatch,color);tr.append(cell,qtyCell,roleCell,colorCell,removeCell);$('rig').append(tr);});
 }
 function renderSearch(){const result=StormLibrary.search($('search').value,$('manufacturer').value,50);$('searchCount').textContent=result.total.toLocaleString()+' matching modes'+(result.total>50?' · showing first 50; refine your search':'');$('libraryResults').replaceChildren(...result.results.map(f=>{const row=document.createElement('tr');for(const value of [f.manufacturer||'(unspecified)',f.model,f.mode,f.exportSupported?(f.magicVisReferenceConfirmed?'MagicVis confirmed for reference rig':f.aimingIssue?'Static export checked · aiming unavailable':f.auditStatus==='structural-pass'?'Export checks passed · MagicVis unverified':'Native compiler · MagicVis unverified'):(f.compilerIssue||'Catalog only')]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}const cell=document.createElement('td'),add=document.createElement('button');add.textContent='Add to rig';add.setAttribute('aria-label','Add '+f.model+' '+f.mode+' to rig');add.onclick=()=>{project.rig.push({profileId:f.id,quantity:1});renderRig();refresh();};cell.append(add);row.append(cell);return row;}));}
 // Manufacturer options are included in the HTML so the list is visible
@@ -68,20 +76,103 @@ $('libraryStats').textContent=StormLibrary.stats.modes.toLocaleString()+' fixtur
 $('verificationSummary').textContent=FixtureLibrary.auditSummary?FixtureLibrary.auditSummary.structuralPass.toLocaleString()+' modes passed automated export checks. MagicVis and real-world output are not verified across the full library.':'Full-library verification report is not available in this build.';
 let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(renderSearch,120);};$('manufacturer').onchange=renderSearch;
 function refresh(persist=true){
+ aiReview=null;$('aiExport').disabled=true;$('aiPlanDownload').disabled=true;$('aiIssues').textContent='';
  const count=project.rig.reduce((n,r)=>n+(Number.isInteger(r.quantity)&&r.quantity>0&&r.quantity<=512?r.quantity:0),0);project.places=Array.from({length:Math.min(count,6144)},(_,i)=>project.places[i]||'Truss');
- read();RoomLayout.sync(project);notes=undefined;$('notes').disabled=true;$('patch').disabled=true;$('playbackGuide').disabled=true;const errors=[...StormBrief.validateProject(project,Catalog),...RoomLayout.validate(project),...SceneExport.validate(project)];$('generate').disabled=errors.length>0;$('status').textContent=errors.join('\n');layout();renderTrusses();renderSceneBoxes();if(!errors.length&&persist!==false){try{localStorage.setItem('rig-to-show-autosave',JSON.stringify(project));$('autosaveStatus').textContent='Last valid layout saved locally. Save rig project for a portable backup.';}catch{$('autosaveStatus').textContent='Local autosave unavailable. Use Save rig project to retain your layout.';}}
- try{const design=StormBrief.design(project,StormNative.defaults);$('decisions').replaceChildren(...design.decisions.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));$('looks').replaceChildren(...design.looks.map(l=>{const row=document.createElement('tr');for(const value of [l[0],l[1]+'% '+l[3],l[2]+'% '+l[4]]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}return row;}));}catch(e){$('status').textContent=e.message;}
+ read();RoomLayout.sync(project);notes=undefined;$('notes').disabled=true;$('patch').disabled=true;$('playbackGuide').disabled=true;const errors=[...StormBrief.validateProject(project,Catalog),...RoomLayout.validate(project),...SceneExport.validate(project)];$('generate').disabled=errors.length>0;$('status').textContent=errors.join('\n');layout();renderTrusses();renderSceneBoxes();$('autosaveStatus').textContent='Use Save rig project to keep your work. Each launch starts with an empty rig.';
+ try{if($('generationMode').value==='ai'){
+  $('scenarioSummary').textContent='Local AI mode: generate a plan, review the head selections and decisions, then export. No AI plan has been generated.';
+  $('looks').replaceChildren();$('effectPlan').replaceChildren();$('decisions').replaceChildren();
+ }else{const design=StormBrief.design(project,StormNative.defaults);
+ $('scenarioSummary').textContent='Detected scenario: '+design.scenario+'. '+design.looks.length+' static cues planned. These levels and colors are written into the generated .shw. Choose each fixture’s lighting purpose to control which lights illuminate people and which create décor and effects.';
+ const effects=design.program.filter(p=>p.type==='effect');
+ $('effectPlan').replaceChildren(...(effects.length?effects:[{name:'No effects selected',scope:'—',status:'omitted'}]).map(effect=>{
+  const row=document.createElement('tr');
+  for(const value of [effect.name,effect.scope||'Eligible fixtures',effect.status==='pending-native-export'?'Not exported — implementation pending':effect.status==='excluded'?'Excluded by your settings':effect.status==='exportable'?'Planned — requires compatible fixtures':effect.status]){
+   const cell=document.createElement('td');cell.textContent=value;row.append(cell);
+  }return row;
+ }));
+$('decisions').replaceChildren(...design.decisions.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));$('looks').replaceChildren(...design.looks.map(l=>{const row=document.createElement('tr');for(const value of [l[0],l[1]+'% '+l[3],l[2]+'% '+l[4]]){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}return row;}));}}catch(e){$('status').textContent=e.message;}
 }
 function download(bytes,type,name){const url=URL.createObjectURL(new Blob([bytes],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-$('add').onclick=()=>{$('search').focus();$('search').scrollIntoView({behavior:'smooth',block:'center'});};
+$('add').onclick=()=>{$('fixtureLibrary').open=true;$('search').focus();$('search').scrollIntoView({behavior:'smooth',block:'center'});};
 $('recoverRig').onclick=()=>{if(recoveryRig)download(recoveryRig,'application/json','recovered-rig.json');};
 $('saveRig').onclick=()=>{read();RoomLayout.sync(project);const data={...structuredClone(project),fixtures:project.rig.map(row=>({quantity:row.quantity,profile:StormLibrary.byId.get(row.profileId)}))};download(JSON.stringify(data,null,2),'application/json','rig-project.json');};
-function loadRigData(data){if(!data||!Array.isArray(data.rig)||data.rig.some(r=>!StormLibrary.byId.has(r.profileId)||!Number.isInteger(r.quantity)||r.quantity<1||r.quantity>512)||data.rig.reduce((n,r)=>n+r.quantity,0)>6144)throw Error('Choose a saved rig-project JSON with supported fixture IDs and quantities.');if(typeof data.name!=='string'||data.name.length>80)throw Error('Invalid project name.');const candidate={version:1,aimingModelVersion:data.aimingModelVersion,name:data.name,rig:data.rig.map(r=>({profileId:r.profileId,quantity:r.quantity,role:r.role,layoutKey:typeof r.layoutKey==='string'?r.layoutKey:undefined})),brief:data.brief,event:data.event,brand:data.brand,movement:Boolean(data.movement),chase:Boolean(data.chase),operatingPage:data.operatingPage??true,movementSpeed:data.movementSpeed??1,aimTargets:Boolean(data.aimTargets),circleSize:data.circleSize??10,room:data.room,stage:data.stage,scene:data.scene||{trusses:[]},places:data.places,targets:data.targets,layout:data.layout||[]};if(!Array.isArray(candidate.layout)||!candidate.room||!Array.isArray(candidate.places))throw Error('Invalid room layout.');const oldAiming=candidate.aimingModelVersion!==2;RoomLayout.sync(candidate);const errors=[...StormBrief.validateProject(candidate,Catalog),...SceneExport.validate(candidate)];if(errors.length)throw Error(errors.join('\n'));Object.assign(project,candidate);for(const id of ['name','brief','event','brand'])$(id).value=project[id];for(const id of ['movement','chase','aimTargets','operatingPage'])$(id).checked=project[id];$('circleSize').value=project.circleSize;$('movementSpeed').value=project.movementSpeed;$('unit').value=project.room.unit;for(const key of ['width','depth','stageWidth','stageDepth','trussHeight'])$(key).value=project.room[key];selectedHead=0;selectedTarget=undefined;selectedKind='fixture';renderRig();refresh();$('status').textContent=oldAiming?'Rig loaded. Old aiming overrides were reset for the corrected native axes and pan direction.':'Rig and layout loaded.';}
+function loadRigData(data){if(!data||!Array.isArray(data.rig)||data.rig.some(r=>!StormLibrary.byId.has(r.profileId)||!Number.isInteger(r.quantity)||r.quantity<1||r.quantity>512)||data.rig.reduce((n,r)=>n+r.quantity,0)>6144)throw Error('Choose a saved rig-project JSON with supported fixture IDs and quantities.');if(typeof data.name!=='string'||data.name.length>80)throw Error('Invalid project name.');const candidate={version:1,aimingModelVersion:data.aimingModelVersion,name:data.name,rig:data.rig.map(r=>({profileId:r.profileId,quantity:r.quantity,role:r.role,markerColor:/^#[0-9a-f]{6}$/i.test(r.markerColor||'')?r.markerColor:undefined,layoutKey:typeof r.layoutKey==='string'?r.layoutKey:undefined})),brief:data.brief,event:data.event,brand:data.brand,movement:Boolean(data.movement),chase:Boolean(data.chase),operatingPage:data.operatingPage??true,movementSpeed:data.movementSpeed??1,aimTargets:Boolean(data.aimTargets),circleSize:data.circleSize??10,room:data.room,stage:data.stage,scene:data.scene||{trusses:[]},places:data.places,targets:data.targets,layout:data.layout||[]};if(!Array.isArray(candidate.layout)||!candidate.room||!Array.isArray(candidate.places))throw Error('Invalid room layout.');const oldAiming=candidate.aimingModelVersion!==2;RoomLayout.sync(candidate);const errors=[...StormBrief.validateProject(candidate,Catalog),...SceneExport.validate(candidate)];if(errors.length)throw Error(errors.join('\n'));Object.assign(project,candidate);for(const id of ['name','brief','event','brand'])$(id).value=project[id];for(const id of ['movement','chase','aimTargets','operatingPage'])$(id).checked=project[id];$('circleSize').value=project.circleSize;$('movementSpeed').value=project.movementSpeed;$('unit').value=project.room.unit;for(const key of ['width','depth','stageWidth','stageDepth','trussHeight'])$(key).value=project.room[key];selectedHead=0;selectedTarget=undefined;selectedKind='fixture';renderRig();refresh();$('status').textContent=oldAiming?'Rig loaded. Old aiming overrides were reset for the corrected native axes and pan direction.':'Rig and layout loaded.';}
 $('loadRig').onclick=()=>{const picker=document.createElement('input');picker.type='file';picker.accept='.json,application/json';picker.onchange=async()=>{try{const file=picker.files[0];if(!file)return;if(file.size>5000000)throw Error('Rig project is too large.');loadRigData(JSON.parse(await file.text()));}catch(e){$('status').textContent=e.message;}};picker.click();};
 for(const id of ['name','brief','event','brand','movement','chase','unit','width','depth','stageWidth','stageDepth','trussHeight'])$(id).addEventListener('input',refresh);
-$('generate').onclick=async()=>{read();$('generate').disabled=true;$('status').textContent='Building native show…';try{const built=structuredClone(project);const result=await StormBrief.compile(built,Catalog,FactorySeed);const name=built.name.replace(/[^A-Za-z0-9 _-]/g,'').trim()||'Storm Event';download(result.show,'application/octet-stream',name+'.shw');notes={...built,design:result.design,export:{format:'MagicQ .shw',experimentalCompiler:true,layoutApplied:result.layoutApplied,focusApplied:result.focusApplied,focus:result.focus,patch:result.patch,warnings:result.warnings,playbackPlan:result.playbackPlan}};$('notes').disabled=false;$('patch').disabled=false;$('playbackGuide').disabled=false;$('status').textContent=(result.layoutApplied?'Room positions exported to MagicVis. ':'')+(result.focusApplied?'Target aiming applied; check calibration in MagicVis. ':'')+'Native show exported: '+result.patch.length+' heads. Download project notes for the DMX patch. Load in MagicQ and verify patch, groups, looks and effects before using it on a gig.';}catch(e){$('status').textContent=e.message;}finally{$('generate').disabled=StormBrief.validateProject(project,Catalog).length>0;}};
+$('summitExample').onclick=()=>{$('brief').value='Corporate summit with red and blue colors. I need a stagewash, ballyhoo and dim chase.';$('event').value='auto';$('brand').value='auto';$('movement').checked=true;$('chase').checked=true;refresh();};
+$('generate').onclick=async()=>{if($('generationMode').value==='ai'){await generateAI();return;}read();$('generate').disabled=true;$('status').textContent='Building native show…';try{const built=structuredClone(project);const result=await StormBrief.compile(built,Catalog,FactorySeed);const name=built.name.replace(/[^A-Za-z0-9 _-]/g,'').trim()||'Storm Event';download(result.show,'application/octet-stream',name+'.shw');notes={...built,design:result.design,export:{format:'MagicQ .shw',experimentalCompiler:true,layoutApplied:result.layoutApplied,focusApplied:result.focusApplied,focus:result.focus,patch:result.patch,warnings:result.warnings,playbackPlan:result.playbackPlan}};$('notes').disabled=false;$('patch').disabled=false;$('playbackGuide').disabled=false;$('status').textContent=(result.layoutApplied?'Room positions exported to MagicVis. ':'')+(result.focusApplied?'Target aiming applied; check calibration in MagicVis. ':'')+'Native show exported: '+result.patch.length+' heads. Download project notes for the DMX patch. Load in MagicQ and verify patch, groups, looks and effects before using it on a gig.';}catch(e){$('status').textContent=e.message;}finally{$('generate').disabled=StormBrief.validateProject(project,Catalog).length>0;}};
 $('playbackGuide').onclick=()=>{if(!notes)return;const rows=[['Page','Page name','Playback','Cue stack','Control'],...notes.export.playbackPlan.flatMap(page=>page.controls.map(c=>[page.page,page.name,c.slot,c.stack,c.name]))];download(rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv;charset=utf-8','playback-map.csv');};
 $('notes').onclick=()=>{if(notes)download(JSON.stringify(notes,null,2),'application/json','show-project.json');};
 $('patch').onclick=()=>{if(!notes)return;const keys=['head','fixture','mode','universe','address','channels','role','location'],csv=[keys,...notes.export.patch.map(h=>keys.map(k=>h[k]))].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');download(csv,'text/csv;charset=utf-8','dmx-patch.csv');};
-renderRig();renderSearch();let saved;try{saved=localStorage.getItem('rig-to-show-autosave');}catch{}if(saved){try{loadRigData(JSON.parse(saved));$('status').textContent='Autosaved rig restored.';}catch(e){recoveryRig=saved;$('recoverRig').hidden=false;refresh(false);$('status').textContent='Saved rig could not be restored: '+e.message+'. Download the saved layout for recovery before editing.';}}else refresh();$('startup').hidden=true;
+
+function generationControls(){
+ const ai=$('generationMode').value==='ai';
+ $('generate').textContent=ai?'Generate AI plan':'Generate MagicQ .shw';
+ $('aiExport').hidden=!ai;$('aiPlanDownload').hidden=!ai;
+ refresh();
+}
+$('generationMode').onchange=generationControls;
+$('aiModel').oninput=()=>{refresh();$('aiConnection').textContent='Model changed. Check connection to confirm it is downloaded.';};
+$('aiConnect').onclick=async()=>{
+ $('aiConnect').disabled=true;
+ try{
+  if(location.protocol==='file:')throw Error('Open the desktop app or run npm start and use http://127.0.0.1:3000. Local AI cannot connect from this file.');
+  const response=await fetch('/api/models'),data=await response.json();
+  if(!response.ok)throw Error(data.error||'Local AI connection failed.');
+  $('aiModels').replaceChildren(...data.models.map(m=>new Option(m.name,m.name)));
+  const selected=$('aiModel').value.trim();
+  if(!data.models.some(m=>m.name===selected))throw Error('Ollama is running, but '+selected+' is not downloaded. Run: ollama pull '+selected);
+  $('aiConnection').textContent='Connected locally. '+selected+' is downloaded; generation performance has not been benchmarked on this Mac.';
+ }catch(e){$('aiConnection').textContent=e.message;}finally{$('aiConnect').disabled=false;}
+};
+function reviewAI(plan){
+ const row=values=>{const r=document.createElement('tr');for(const text of values){const cell=document.createElement('td');cell.textContent=text;r.append(cell);}return r;};
+ $('scenarioSummary').textContent='Local AI plan v2: '+plan.summary;
+ $('looks').replaceChildren(...plan.cues.flatMap(c=>c.states.map(s=>row([c.name+' · manual',LightingPlan.resolve(s.selection,plan.groups).join(', '),
+  [s.intensity===null?null:s.intensity+'%',s.color,s.targetId===null?null:'Target: '+s.targetId].filter(v=>v!==null).join(' · ')]))));
+ $('effectPlan').replaceChildren(...plan.effects.map(e=>row([e.name+' · '+e.kind,LightingPlan.resolve(e.selection,plan.groups).join(', '),'Manual start; release its playback to stop'])));
+ $('decisions').replaceChildren(...plan.decisions.map(text=>{const p=document.createElement('p');p.textContent=text;return p;}));
+ $('aiIssues').textContent=plan.issues.length?'Needs clarification or unsupported features:\n'+plan.issues.join('\n'):'Validated for the current rig. Manual playbacks; compiler-default timing. Exact MagicQ 1.9.7.3 playback testing pending.';
+}
+async function generateAI(){
+ try{
+  if(aiAbort)throw Error('A local generation is already running.');
+  read();RoomLayout.sync(project);
+  const errors=StormBrief.validateProject(project,Catalog);if(errors.length)throw Error(errors.join('\n'));
+  if(location.protocol==='file:')throw Error('Local AI needs the desktop app or local server. Run npm start and open http://127.0.0.1:3000. No fallback was generated.');
+  const snapshot=structuredClone(project),stamp=JSON.stringify(snapshot),model=$('aiModel').value.trim();
+  const definitions=await MagicQProfiles.load(snapshot.rig.map(r=>StormLibrary.byId.get(r.profileId)));
+  aiReview=null;$('aiExport').disabled=true;$('aiPlanDownload').disabled=true;
+  aiAbort=new AbortController();$('generate').disabled=true;$('aiCancel').hidden=false;
+  $('status').textContent='Generating a local AI plan with '+model+'… The first model load can take longer.';
+  const plan=await LightingPlan.generate(snapshot,Catalog,definitions,{model,signal:aiAbort.signal});
+  read();RoomLayout.sync(project);
+  if(JSON.stringify(project)!==stamp||$('aiModel').value.trim()!==model)throw Error('The rig, layout, brief or model changed during generation. Generate a fresh plan.');
+  aiReview={plan,stamp,model};reviewAI(plan);
+  $('aiExport').disabled=plan.issues.length>0;$('aiPlanDownload').disabled=false;
+  $('status').textContent=plan.issues.length?'No show generated. Resolve the listed issues and generate again.':'AI plan ready for review. Export writes only the validated plan using the existing native compiler.';
+ }catch(e){aiReview=null;$('aiExport').disabled=true;$('status').textContent=e.message;}
+ finally{aiAbort=null;$('aiCancel').hidden=true;$('generate').disabled=StormBrief.validateProject(project,Catalog).length>0;}
+}
+$('aiCancel').onclick=()=>aiAbort?.abort();
+$('aiPlanDownload').onclick=()=>{if(aiReview)download(JSON.stringify(aiReview.plan,null,2),'application/json','lighting-plan-v2.json');};
+$('aiExport').onclick=async()=>{
+ $('aiExport').disabled=true;
+ try{
+  read();RoomLayout.sync(project);
+  if(!aiReview||JSON.stringify(project)!==aiReview.stamp)throw Error('Project changed. Generate and review a new AI plan.');
+  const built=structuredClone(project),result=await StormBrief.compile(built,Catalog,FactorySeed,{plan:aiReview.plan});
+  if(JSON.stringify(project)!==aiReview.stamp)throw Error('Project changed during export. Generate a fresh plan.');
+  const name=built.name.replace(/[^A-Za-z0-9 _-]/g,'').trim()||'Lighting Show';
+  download(result.show,'application/octet-stream',name+'.shw');
+  notes={...built,design:result.design,aiModel:aiReview.model,export:{format:'MagicQ .shw',targetVersion:'1.9.7.3',playbackValidation:'pending',
+   layoutApplied:result.layoutApplied,focusApplied:result.focusApplied,focus:result.focus,patch:result.patch,warnings:result.warnings,playbackPlan:result.playbackPlan}};
+  $('notes').disabled=false;$('patch').disabled=false;$('playbackGuide').disabled=false;
+  $('status').textContent='Native show exported from reviewed AI plan. Effects require manual release; explicit timing is not encoded. Verify playback in MagicQ 1.9.7.3 before use.';
+ }catch(e){$('status').textContent=e.message;}
+ finally{$('aiExport').disabled=!aiReview;}
+};
+
+renderRig();renderSearch();generationControls();$('startup').hidden=true;
 })();

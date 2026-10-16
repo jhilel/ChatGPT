@@ -1,5 +1,10 @@
 # Rig to Show
 
+## Lighting App 2 local AI update
+
+Local AI mode now uses a downloaded pretrained Ollama model and a strict Lighting Plan v2 review/export path. Basic rules remains an explicit offline option. See [local AI setup, supported compiler features and validation limits](docs/local-ai.md). AI mode requires the local server or desktop app; opening the HTML directly supports Basic rules only. Exact MagicQ 1.9.7.3 playback validation is pending.
+
+
 An experimental local MagicQ show generator for Windows and macOS. Choose fixtures, modes and quantities, describe the event, and download a native `.shw` without uploading a starting show.
 
 ## Download and open

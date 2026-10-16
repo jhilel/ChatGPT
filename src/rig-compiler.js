@@ -18,38 +18,79 @@ function isColorChannel([,flags,attr]){return ![0,2,3,4,5,20].includes(attr)&&((
 function colorValues(def,color){const out=new Map(),code=colorCodes[color];const palette=def.colors.find(p=>p[1]===code)||def.colors.find(p=>p[0].toLowerCase()===color.toLowerCase());if(palette)for(const pair of palette[2])if(def.channels[pair[0]]&&isColorChannel(def.channels[pair[0]]))out.set(...pair);
  def.channels.forEach(([name,flags,attr],offset)=>{if(out.has(offset))return;const additive=Boolean(flags&0x2000),fine=Boolean(flags&8),base=rgb[color];if([16,17,18].includes(attr))out.set(offset,fine?0:(additive?base[attr-16]:255-base[attr-16]));else if([19,27,31].includes(attr)&&additive)out.set(offset,fine?0:(attr===19&&color==='White'?255:attr===27&&color==='Amber'?255:attr===31&&color==='UV'?255:0));else if(attr===6){const range=def.ranges.find(r=>r[0]===offset&&(r[5]&255)===code&&(r[4]&0xf000)===0x1000);if(range)out.set(offset,Math.floor((range[2]+range[3])/2));}});return out;}
 function dimValue(flags,pct){const value=Math.floor(pct*65535/100);return flags&8?value&255:value>>>8;}
-function staticValues(heads,look){const out=new Map();for(const h of heads){const def=h.personality.definition,pct=h.role==='stage'?look[1]:look[2],color=h.role==='stage'?look[3]:look[4],colors=colorValues(def,color),hasDim=def.channels.some(([,flags,attr])=>attr===0&&!(flags&8)),additiveRGB=def.channels.some(([,flags,attr])=>[16,17,18].includes(attr)&&Boolean(flags&0x2000));const locate=new Map(def.locate);
+function staticValues(heads,look){const out=new Map(),palette=look[5]?.decorativePalette;
+ const ordered=heads.filter(h=>h.role!=='stage').slice().sort((a,b)=>(a.geometry?.x??a.id)-(b.geometry?.x??b.id)||(a.geometry?.depth??0)-(b.geometry?.depth??0)||a.id-b.id);
+ const assigned=new Map(ordered.map((h,i)=>[h.id,palette?.[i%palette.length]]));for(const h of heads){const def=h.personality.definition,pct=h.role==='stage'?look[1]:look[2],color=h.role==='stage'?look[3]:(assigned.get(h.id)||look[4]),colors=colorValues(def,color),hasDim=def.channels.some(([,flags,attr])=>attr===0&&!(flags&8)),additiveRGB=def.channels.some(([,flags,attr])=>[16,17,18].includes(attr)&&Boolean(flags&0x2000));const locate=new Map(def.locate);
   def.channels.forEach(([name,flags,attr],offset)=>{if(attr===20)return;let value=locate.get(offset)??0;if(colors.has(offset))value=colors.get(offset);if(attr===0)value=dimValue(flags,pct);else if(!hasDim&&((flags&0x2000)||(additiveRGB&&[19,27,31].includes(attr)))&&[16,17,18,19,27,31].includes(attr))value=Math.floor(value*pct/100);if([2,3].includes(attr)&&pct>0){const open=def.ranges.find(r=>r[0]===offset&&/^open$|no strobe/i.test(r[1]));if(open)value=open[2];}if([2,3].includes(attr)&&pct===0){const closed=def.ranges.find(r=>r[0]===offset&&/^(?:closed|shutter closed|blackout)$/i.test(r[1]));if(closed)value=closed[2];}if(h.focus?.values.has(offset))value=h.focus.values.get(offset);out.set(h.start+offset,Math.max(0,Math.min(255,value)));});
  }return out;}
 function pairs(values){return [...values].flatMap(([channel,value])=>[hex(channel),hex(value)]).join(',')+(values.size?',':'');}
+function planCueValues(rig,cue,plan,project){
+ const values=new Map();
+ for(const state of cue.states){
+  const ids=new Set(LightingPlan.resolve(state.selection,plan.groups));
+  for(const head of rig.heads.filter(h=>ids.has(h.id))){
+   const def=head.personality.definition,hasDim=def.channels.some(([,flags,attr])=>attr===0&&!(flags&8));
+   const colorMap=state.color===null?new Map():colorValues(def,state.color);
+   for(const [offset,value] of colorMap)values.set(head.start+offset,value);
+   if(state.intensity!==null){
+    def.channels.forEach(([,flags,attr],offset)=>{
+     if(attr===0)values.set(head.start+offset,dimValue(flags,state.intensity));
+     else if(!hasDim&&colorMap.has(offset))values.set(head.start+offset,Math.floor(colorMap.get(offset)*state.intensity/100));
+     if([2,3].includes(attr)){
+      const range=def.ranges.find(r=>r[0]===offset&&(state.intensity>0?/^open$|no strobe/i.test(r[1]):/^(?:closed|shutter closed|blackout)$/i.test(r[1])));
+      if(range)values.set(head.start+offset,range[2]);
+     }
+    });
+   }
+   if(state.targetId!==null){
+    const target=project.targets.find(t=>t.id===state.targetId),point=ShowPlanner.resolvePoint(project,head.id-1,target);
+    const focus=MagicVisGeometry.aim(point,def);
+    for(const [offset,value] of focus.values)values.set(head.start+offset,value);
+   }
+  }
+ }
+ return values;
+}
 function compile(project,catalog,definitions,seed,design){
  const source=factoryRecords(seed),get=(type,id)=>source.find(r=>r.type===type&&parseInt(r.text.split(',')[1],16)===id)?.text;
  const rig=allocate(project,catalog,definitions),generated=new Map(),warnings=[],playbackPlan=[],cueNames=new Map();if(globalThis.ShowPlanner){const errors=ShowPlanner.validate(project);if(errors.length)throw Error(errors.join('\n'));}const add=(type,text)=>generated.set(type,(generated.get(type)||'')+text+'\n');
+ if(design.nativePlan){
+  if(!globalThis.LightingPlan)throw Error('Lighting Plan v2 validator is unavailable.');
+  design={...design,nativePlan:LightingPlan.validate(design.nativePlan,project,catalog,definitions)};
+  LightingPlan.requireExportable(design.nativePlan);
+ }
  for(const p of rig.personalities.values())add('P',p.definition.record.replace(/^P,[^,]+,/,`P,${hex(p.id,4)},`));
- if(project.aimTargets){for(const h of rig.heads)if(h.personality.definition.channels.some(([,f,a])=>a===4&&!(f&8)))try{h.focus=MagicVisGeometry.aim(h.geometry,h.personality.definition);}catch(e){throw Error('Head '+h.id+': '+e.message);}}
+ if(project.aimTargets&&!design.nativePlan){for(const h of rig.heads)if(h.personality.definition.channels.some(([,f,a])=>a===4&&!(f&8)))try{h.focus=MagicVisGeometry.aim(h.geometry,h.personality.definition);}catch(e){throw Error('Head '+h.id+': '+e.message);}}
  const hTemplate=source.find(r=>r.type==='H').text;
  for(const h of rig.heads){const p=h.personality;for(const [offset,[name,flags]] of p.definition.channels.entries())add('L',`L,${hex(h.start+offset)},${quote(p.fixture.shortName)},${hex(flags)},${hex(p.id)},${hex(offset)},0,ffff,0,0,${hex(h.id)},2,;`);let headRecord=hTemplate.replace(/^H,[^,]+,/,`H,${hex(h.id,8)},`).replace(/\n[0-9a-f]+,[0-9a-f]+,[0-9a-f]+,0,0,;\n$/i,`\n${hex(h.start)},${hex(h.id)},${hex(p.id)},0,0,;\n`);if(h.geometry)headRecord=MagicVisGeometry.transform(headRecord,h.geometry);add('H',headRecord);}
  const groupTemplate=get('G',101),groupTail=groupTemplate.slice(groupTemplate.indexOf('\n'));let groupId=1;
  const group=(name,heads)=>{if(heads.length)add('G',`G,${hex(groupId++,4)},${quote(name)},${hex(heads.length)},${heads.map(h=>hex(h.start)).join(',')},21000024,${groupTail}`);};
  group('All Rig',rig.heads);for(const place of ['Truss','Floor'])group(place,rig.heads.filter(h=>h.place===place));for(const role of ['stage','decorative'])group(role==='stage'?'Stage':'Decorative',rig.heads.filter(h=>h.role===role));for(const p of rig.personalities.values())group(p.fixture.model+' '+p.fixture.mode,rig.heads.filter(h=>h.personality===p));
  for(const target of project.targets||[])group('Target '+target.name,rig.heads.filter(h=>h.geometry?.targetId===target.id));
+ if(design.nativePlan)for(const g of design.nativePlan.groups)group(g.name,rig.heads.filter(h=>g.headIds.includes(h.id)));
  const paletteTemplate=get('F',0xb001),paletteCount=parseInt(paletteTemplate.split(',')[3],16),paletteEnd=numericPrefix(paletteTemplate,1,paletteCount*3),paletteTail=paletteTemplate.slice(paletteEnd.end);let paletteId=0xb000;
  for(const [color,code] of Object.entries(colorCodes)){const values=new Map();for(const h of rig.heads)for(const [offset,value] of colorValues(h.personality.definition,color))values.set(h.start+offset,value);if(values.size)add('F',`F,${hex(paletteId++,4)},${quote(color)},${hex(values.size)},\n${[...values].flatMap(([c,v])=>[hex(c),hex(v),'0']).join(',')},${paletteTail.replace(/^06000020,/,hex(0x06000000+code,8)+',')}`);}
  const staticTemplate=get('S',1),staticCount=parseInt(staticTemplate.split(',')[3],16),staticEnd=numericPrefix(staticTemplate,2,staticCount*2),staticTail=staticTemplate.slice(staticEnd.end),timing=staticTemplate.split('\n')[1];
  const stack=(id,name,sourceId=1)=>(cueNames.set(id,name),add('C',get('C',sourceId).replace(/^C,[^,]+,"[^"]*",/,`C,${hex(id,4)},${quote(name)},`).replace(/^0000,0000,[0-9a-f]+,/m,`0000,0000,${hex(id,4)},`)));
  const page=(id,name,cues)=>{playbackPlan.push({page:id,name,controls:cues.map((cue,i)=>({slot:i+1,cue,stack:cue,name:cueNames.get(cue)}))});let template=get('B',1),end=numericPrefix(template,1,404);const values=Array.from({length:202},(_,i)=>hex(cues[i]||0,4)+',00000000,').join('');add('B',template.slice(0,end.start).replace(/^B,[^,]+,"[^"]*",/,`B,${hex(id,4)},${quote(name)},`)+values+'\n'+template.slice(end.end));};
- let cueId=1;const looks=[];design.looks.forEach(look=>{const id=cueId++,values=staticValues(rig.heads,look);add('S',`S,${hex(id,4)},${quote(look[0])},${hex(values.size)},0,0,\n${timing}\n${pairs(values)}\n\n${staticTail}`);stack(id,look[0]);looks.push(id);});page(1,'Event Looks',looks);
+ let cueId=1;const looks=[];(design.nativePlan?design.nativePlan.cues.map(cue=>[cue.name,cue]):design.looks).forEach(look=>{const id=cueId++,values=design.nativePlan?planCueValues(rig,look[1],design.nativePlan,project):staticValues(rig.heads,look);add('S',`S,${hex(id,4)},${quote(look[0])},${hex(values.size)},0,0,\n${timing}\n${pairs(values)}\n\n${staticTail}`);stack(id,look[0]);looks.push(id);});for(let i=0;i<looks.length;i+=10)page(1+i/10,'Event Looks'+(i?' '+(i/10+1):''),looks.slice(i,i+10));
  const effects=[];let circleTemplate;
- for(const kind of ['chase','circle']){if(!design[kind])continue;for(const place of ['All','Truss','Floor']){const eligible=rig.heads.filter(h=>(place==='All'||h.place===place)&&(kind==='chase'?h.personality.definition.channels.some(([,f,a])=>a===0&&!(f&8)):h.personality.definition.channels.some(([,f,a])=>a===4&&!(f&8))&&h.personality.definition.channels.some(([,f,a])=>a===5&&!(f&8))));if(!eligible.length)continue;
+ const jobs=design.nativePlan?design.nativePlan.effects.map(spec=>({kind:spec.kind==='dimmerChase'?'chase':'circle',place:'Selected',spec})):['chase','circle'].filter(kind=>design[kind]).flatMap(kind=>['All','Truss','Floor'].map(place=>({kind,place})));
+ for(const {kind,place,spec} of jobs){const eligible=rig.heads.filter(h=>(spec?LightingPlan.resolve(spec.selection,design.nativePlan.groups).includes(h.id):(place==='All'||h.place===place)&&(design.effectScope!=='decorative'||h.role==='decorative'))&&(kind==='chase'?h.personality.definition.channels.some(([,f,a])=>a===0&&!(f&8)):h.personality.definition.channels.some(([,f,a])=>a===4&&!(f&8))&&h.personality.definition.channels.some(([,f,a])=>a===5&&!(f&8))));if(!eligible.length)continue;
    eligible.sort((a,b)=>(a.geometry?.x??a.id)-(b.geometry?.x??b.id)||(a.geometry?.depth??0)-(b.geometry?.depth??0));
+   if(spec?.order==='rightToLeft')eligible.reverse();
+   if(spec&&kind==='circle')for(const h of eligible)h.focus=MagicVisGeometry.aim(h.geometry,h.personality.definition);
    const entries=[];eligible.forEach((h,i)=>h.personality.definition.channels.forEach(([,flags,attr],offset)=>{if(flags&8)return;if(kind==='chase'?attr===0:[4,5].includes(attr))entries.push({channel:h.start+offset,attr,head:h,offset,phase:Math.floor(i*1000/eligible.length)});}));
-   const sourceId=kind==='chase'?3:4,lines=get('S',sourceId).split('\n'),oldCount=parseInt(lines[3].split(',')[1],16),timingIndex=lines.findIndex(l=>l==='00000000,00000000,00000000,00000000,00000961,000003e8,000003e8,0000,'),id=cueId++,name=place+' '+(kind==='chase'?'Dim Chase':'Circle'),values=kind==='circle'?staticValues(eligible,['',50,50,'White','White']):new Map();
-   const header=lines[3].split(',');header[1]=hex(entries.length);const requested=Math.round((project.circleSize??10)*255/100),speed=Math.round(80*(project.movementSpeed??1));header[5]=hex(speed,4);if(kind==='circle')header[7]=hex(requested,4);const rows=entries.map(e=>{const center=e.head.focus?.values.get(e.offset)??128,size=kind==='chase'?256:Math.min(requested,center,255-center);return `${hex(e.channel)},${hex(speed)},0,${hex(size)},0,${hex(Math.floor(e.phase*80/1000))},${kind==='circle'&&e.attr===5?'2':'8002'},`;});const timings=entries.map(e=>`961,3e8,${hex(e.phase)},`);
+   const sourceId=kind==='chase'?3:4,lines=get('S',sourceId).split('\n'),oldCount=parseInt(lines[3].split(',')[1],16),timingIndex=lines.findIndex(l=>l==='00000000,00000000,00000000,00000000,00000961,000003e8,000003e8,0000,'),id=cueId++,name=spec?.name||(place+' '+(kind==='chase'?'Dim Chase':'Circle')),values=kind==='circle'?staticValues(eligible,['',50,50,'White','White']):new Map();
+   if(spec&&kind==='circle'){
+    values.clear();for(const h of eligible)for(const [offset,value] of h.focus.values)values.set(h.start+offset,value);
+   }
+   const header=lines[3].split(',');header[1]=hex(entries.length);const requested=Math.round((spec?.sizePercent??project.circleSize??10)*255/100),speed=Math.round(80*(spec?.speedMultiplier??project.movementSpeed??1));header[5]=hex(speed,4);if(kind==='circle')header[7]=hex(requested,4);const rows=entries.map(e=>{const center=e.head.focus?.values.get(e.offset)??128,size=kind==='chase'?256:Math.min(requested,center,255-center);return `${hex(e.channel)},${hex(speed)},0,${hex(size)},0,${hex(Math.floor(e.phase*80/1000))},${kind==='circle'&&e.attr===5?'2':'8002'},`;});const timings=entries.map(e=>`961,3e8,${hex(e.phase)},`);
    const cueText=[`S,${hex(id,4)},${quote(name)},${hex(values.size)},1,0,`,lines[1],pairs(values),header.join(','),...rows,...lines.slice(4+oldCount,timingIndex+1),...timings,...lines.slice(timingIndex+1+oldCount)].join('\n');add('S',cueText);if(kind==='circle'&&place==='All')circleTemplate=cueText;stack(id,name,sourceId);effects.push(id);
-  }}
- if(effects.length){for(const r of source.filter(r=>r.type==='W'))add('W',r.text);page(2,'Effects',effects);}
+  }
+ if(effects.length){for(const r of source.filter(r=>r.type==='W'))add('W',r.text);page(design.nativePlan?1+Math.ceil(looks.length/10):2,'Effects',effects);}
 
- if(project.operatingPage){
+ if(project.operatingPage&&!design.nativePlan){
   let nextPage=effects.length?3:2;
   const control=(name,values)=>{if(!values.size)return null;const id=cueId++;add('S',`S,${hex(id,4)},${quote(name)},${hex(values.size)},0,0,\n${timing}\n${pairs(values)}\n\n${staticTail}`);stack(id,name);return id;};
   const controlPages=(name,ids)=>{const valid=ids.filter(Boolean);for(let i=0;i<valid.length;i+=10)page(nextPage++,name+(i?' '+(i/10+1):''),valid.slice(i,i+10));};
@@ -62,8 +103,13 @@ function compile(project,catalog,definitions,seed,design){
  const replace=new Set(['P','L','H','G','F','R','W','S','C','B']),emitted=new Set();let output='';for(const r of source){if(replace.has(r.type)){if(!emitted.has(r.type)){output+=generated.get(r.type)||'';emitted.add(r.type);}}else output+=r.text+'\n';}
  for(const [type,value] of generated)if(!emitted.has(type))output+=value;
  for(const p of rig.personalities.values())if(!p.definition.colors.length&&!p.definition.channels.some(([,f,a])=>[16,17,18].includes(a)))warnings.push(p.fixture.model+': requested colors use available wheel ranges; unsupported colors retain locate color.');
+ if(design.nativePlan)warnings.push('AI plan: effects use independent manual playbacks. Release the effect playback explicitly; selecting a static cue does not stop it. Inherited native timing retained. Exact 1.9.7.3 playback validation pending.');
+ for(const page of playbackPlan)for(const control of page.controls)if(design.nativePlan){
+  const spec=design.nativePlan.effects.find(e=>e.name===control.name);
+  control.trigger='manualPlayback';control.stop=spec?'manualRelease':null;control.timing='compilerDefault';
+ }
  const patch=rig.heads.map(h=>({head:h.id,fixture:h.personality.fixture.model,mode:h.personality.fixture.mode,universe:h.universe,address:h.address,channels:h.count,role:h.role,location:h.place}));
- return {show:new TextEncoder().encode(output),patch,warnings,playbackPlan,layoutApplied:rig.heads.every(h=>Boolean(h.geometry)),focusApplied:Boolean(project.aimTargets),focus:rig.heads.filter(h=>h.focus).map(h=>({head:h.id,pan:h.focus.pan,tilt:h.focus.tilt,targetId:h.geometry.targetId,target:h.geometry.target}))};
+ return {show:new TextEncoder().encode(output),patch,warnings,playbackPlan,layoutApplied:rig.heads.every(h=>Boolean(h.geometry)),focusApplied:design.nativePlan?design.nativePlan.cues.some(c=>c.states.some(s=>s.targetId!==null))||design.nativePlan.effects.some(e=>e.kind==='circle'):Boolean(project.aimTargets),focus:rig.heads.filter(h=>h.focus).map(h=>({head:h.id,pan:h.focus.pan,tilt:h.focus.tilt,targetId:h.geometry.targetId,target:h.geometry.target}))};
 }
 function calibrate(project,catalog,definitions,text,cueName='Correct Aim'){
  const source=records(text.replace(/\r\n/g,'\n')),label=r=>r.text.match(/^[A-Za-z][0-9]?,[^,]+,"([^"]*)",/)?.[1].trim(),matches=source.filter(r=>r.type==='S'&&label(r).toLowerCase()===cueName.trim().toLowerCase());
@@ -88,5 +134,5 @@ function calibrate(project,catalog,definitions,text,cueName='Correct Aim'){
  }
  if(!updates.length)throw Error('The calibration cue has no matching pan/tilt values.');return updates;
 }
-globalThis.MagicQRigCompiler={compile,allocate,colorValues,records,staticValues,calibrate};
+globalThis.MagicQRigCompiler={compile,allocate,colorValues,records,staticValues,planCueValues,calibrate};
 })();

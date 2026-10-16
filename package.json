@@ -34,7 +34,8 @@
       "public/rig-to-show.html",
       "public/profiles/**",
       "public/fixture-verification.csv",
-      "package.json"
+      "package.json",
+      "src/local-ai-server.mjs"
     ],
     "asar": true,
     "win": {
